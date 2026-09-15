@@ -1,278 +1,576 @@
 <!DOCTYPE html>
 <html lang="en-us">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Half-Life 2 Web</title>
-  
-  <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAAAAAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAgAAAAIAAA">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
+    <title>HALF-LIFE 2 // WEB</title>
 
-  <script src="coi-serviceworker.js"></script>
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAAAAAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAgAAAAIAAA">
 
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    body, html {
-      width: 100%;
-      height: 100%;
-      background-color: #000;
-      color: #ccc;
-      font-family: monospace;
-      overflow: hidden;
-    }
-    #game-container {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    canvas#canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-      outline: none;
-    }
-    #loading-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #0d0f12;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-    #loading-overlay.hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
-    .title {
-      font-size: 24px;
-      font-weight: bold;
-      color: #f59e0b;
-      margin-bottom: 20px;
-      letter-spacing: 1px;
-    }
-    .progress-bar-wrap {
-      width: 340px;
-      max-width: 85%;
-      height: 10px;
-      background: #1f242d;
-      border-radius: 5px;
-      overflow: hidden;
-      margin-bottom: 12px;
-      border: 1px solid #374151;
-    }
-    .progress-bar {
-      height: 100%;
-      width: 0%;
-      background: #f59e0b;
-      transition: width 0.1s linear;
-    }
-    .status {
-      font-size: 13px;
-      color: #9ca3af;
-    }
-  </style>
-</head>
-<body>
+    <script>
+      window.coi = {
+        shouldRegister: () => !window.crossOriginIsolated,
+        shouldDeregister: () => false,
+        coepCredentialless: () => true,
+        doReload: () => window.location.reload()
+      };
+    </script>
+    <script src="coi-serviceworker.js"></script>
+    <script>
+      if (!window.crossOriginIsolated && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((reg) => {
+          if (reg.active && !navigator.serviceWorker.controller) {
+            window.location.reload();
+          }
+        });
+      }
+    </script>
 
-  <div id="game-container">
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      @font-face {
+        font-family: 'LambdaMono';
+        src: local('Consolas'), local('Lucida Console'), local('Courier New'), monospace;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #0b0c0e;
+        color: #d8dde3;
+        font-family: 'LambdaMono', -apple-system, monospace;
+      }
+
+      #canvas {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        outline: none;
+        background: #000;
+        cursor: default;
+      }
+
+      #launcher-ui {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        background: radial-gradient(circle at 50% 45%, #1c1815 0%, #0d0c0a 70%, #050504 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+
+      #launcher-ui::before {
+        content: " ";
+        display: block;
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+        background-size: 100% 4px;
+        z-index: 51;
+        pointer-events: none;
+        opacity: 0.6;
+      }
+
+      #launcher-ui.hidden {
+        display: none !important;
+      }
+
+      .terminal-frame {
+        position: relative;
+        z-index: 52;
+        background: rgba(18, 17, 16, 0.95);
+        border: 1px solid #332d28;
+        border-top: 3px solid #ff7b00;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 30px rgba(255, 123, 0, 0.12);
+        width: 100%;
+        max-width: 580px;
+        padding: 2.2rem;
+      }
+
+      .header-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px dashed #2d2621;
+        padding-bottom: 0.8rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.15em;
+        color: #8c827a;
+      }
+
+      .header-meta .tag-id {
+        color: #ff7b00;
+        font-weight: 700;
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        margin-bottom: 0.4rem;
+      }
+
+      .brand-title {
+        font-size: 2.1rem;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        color: #f7ede2;
+        text-transform: uppercase;
+        text-shadow: 0 0 16px rgba(255, 123, 0, 0.35);
+      }
+
+      .brand-sub {
+        font-size: 0.75rem;
+        color: #ffa200;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      .log-console {
+        background: #080706;
+        border: 1px solid #1f1b18;
+        padding: 0.9rem 1.1rem;
+        margin: 1.4rem 0;
+        font-size: 0.78rem;
+        line-height: 1.6;
+        color: #8c827a;
+      }
+
+      .log-console .log-entry {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .log-console .log-entry span {
+        color: #ff7b00;
+      }
+
+      .btn-terminal {
+        width: 100%;
+        background: #ff7b00;
+        color: #120e0a;
+        border: 1px solid #ff7b00;
+        padding: 1rem;
+        font-family: inherit;
+        font-size: 0.88rem;
+        font-weight: 800;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all 0.15s ease-out;
+      }
+
+      .btn-terminal:hover:not(:disabled) {
+        background: #ffa200;
+        border-color: #ffa200;
+        box-shadow: 0 0 20px rgba(255, 162, 0, 0.4);
+      }
+
+      .btn-terminal:disabled {
+        background: #1a1715;
+        border-color: #2b2520;
+        color: #595048;
+        cursor: not-allowed;
+      }
+
+      #progress-box {
+        display: none;
+        margin-top: 1.4rem;
+      }
+
+      .meter-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.74rem;
+        color: #8c827a;
+        margin-bottom: 0.4rem;
+        letter-spacing: 0.08em;
+      }
+
+      .meter-labels #txt-pct {
+        color: #ff7b00;
+        font-weight: bold;
+      }
+
+      .meter-rail {
+        width: 100%;
+        height: 8px;
+        background: #080706;
+        border: 1px solid #2b2520;
+        overflow: hidden;
+      }
+
+      .meter-fill {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, #d45b00, #ff7b00);
+        box-shadow: 0 0 10px rgba(255, 123, 0, 0.5);
+        transition: width 0.08s linear;
+      }
+
+      .meter-sub {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.68rem;
+        color: #595048;
+        margin-top: 0.45rem;
+      }
+
+      #crash-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: rgba(8, 7, 6, 0.95);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+
+      #crash-overlay.active {
+        display: flex !important;
+      }
+
+      .crash-card {
+        background: #141210;
+        border: 1px solid #e63946;
+        max-width: 680px;
+        width: 100%;
+        padding: 1.8rem;
+        box-shadow: 0 0 40px rgba(230, 57, 70, 0.2);
+      }
+
+      .crash-title {
+        color: #e63946;
+        font-size: 0.88rem;
+        font-weight: bold;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-bottom: 0.8rem;
+      }
+
+      .crash-pre {
+        background: #080706;
+        color: #ff858d;
+        font-size: 0.75rem;
+        padding: 1rem;
+        max-height: 260px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        border: 1px solid #2b2520;
+        margin-bottom: 1.2rem;
+      }
+    </style>
+  </head>
+  <body>
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
-    <div id="loading-overlay">
-      <div class="title">HALF-LIFE 2</div>
-      <div class="progress-bar-wrap">
-        <div class="progress-bar" id="progress-bar"></div>
+
+    <div id="launcher-ui">
+      <div class="terminal-frame">
+        <div class="header-meta">
+          <span>CITY 17 SECTOR-4 TERMINAL</span>
+          <span class="tag-id">LAMBDA // WASM</span>
+        </div>
+
+        <div class="brand-row">
+          <div class="brand-title">HALF-LIFE 2</div>
+          <div class="brand-sub">SRC-V1.0</div>
+        </div>
+
+        <div class="log-console">
+          <div class="log-entry">> <span>MOUNT</span>: 33 DYNAMIC SHARED OBJECTS IDENTIFIED</div>
+          <div class="log-entry">> <span>CHUNK_SYS</span>: SUB-50MB SPLIT PIPELINE READY</div>
+          <div class="log-entry">> <span>TARGET_BIN</span>: HL2_LAUNCHER.JS</div>
+        </div>
+
+        <button id="btn-start" class="btn-terminal" onclick="startApp()" disabled>AWAITING ISOLATION...</button>
+
+        <div id="progress-box">
+          <div class="meter-labels">
+            <span id="txt-status">STREAMING ASSETS</span>
+            <span id="txt-pct">0%</span>
+          </div>
+          <div class="meter-rail">
+            <div id="bar-fill" class="meter-fill"></div>
+          </div>
+          <div class="meter-sub">
+            <span id="txt-file">Initializing chunk pipeline...</span>
+            <span id="txt-bytes">0 MB / 420 MB</span>
+          </div>
+        </div>
       </div>
-      <div class="status" id="status-label">Initializing runtime...</div>
     </div>
-  </div>
 
-  <script>
-    // 1. Shims for DataLoader legacy variables (Prevents ReferenceError: spinnerElement is not defined)
-    window.spinnerElement = document.createElement('div');
-    window.statusElement = document.getElementById('status-label');
-    window.progressElement = document.getElementById('progress-bar');
+    <div id="crash-overlay">
+      <div class="crash-card">
+        <div class="crash-title">ENGINE INTERCEPT FAULT</div>
+        <pre id="crash-log" class="crash-pre"></pre>
+        <button class="btn-terminal" onclick="location.reload()">RE-INITIALIZE CONTAINER</button>
+      </div>
+    </div>
 
-    const canvas = document.getElementById('canvas');
-    window.canvasElement = canvas;
-    window.canvas = canvas;
+    <script type="text/javascript">
+      // 1. UI Elements & Hooks
+      const canvasElement = document.getElementById('canvas');
+      const launcherUi = document.getElementById('launcher-ui');
+      const btnStart = document.getElementById('btn-start');
+      const progressBox = document.getElementById('progress-box');
+      const txtStatus = document.getElementById('txt-status');
+      const txtPct = document.getElementById('txt-pct');
+      const barFill = document.getElementById('bar-fill');
+      const txtFile = document.getElementById('txt-file');
+      const txtBytes = document.getElementById('txt-bytes');
+      const crashOverlay = document.getElementById('crash-overlay');
+      const crashLog = document.getElementById('crash-log');
 
-    const overlay = document.getElementById('loading-overlay');
-    const progressBar = document.getElementById('progress-bar');
-    const statusLabel = document.getElementById('status-label');
+      // Global shims for DataLoader
+      window.spinnerElement = document.createElement('div');
+      window.statusElement = txtStatus;
+      window.progressElement = document.createElement('progress');
+      window.canvasElement = canvasElement;
+      window.canvas = canvasElement;
 
-    // 2. WebGL Compatibility Shims
-    const origGetContext = canvas.getContext.bind(canvas);
-    canvas.getContext = function(type, attributes) {
-      if (attributes && (type === 'webgl2' || type === 'webgl')) {
-        attributes.alpha = false;
-        attributes.antialias = false;
-        attributes.powerPreference = 'high-performance';
+      let g_totalExpected = 420 * 1024 * 1024;
+      let g_downloaded = 0;
+      let g_launched = false;
+      let g_engineInitialized = false;
+
+      function updateUI(status, file, bytesAdded) {
+        if (status) txtStatus.textContent = status;
+        if (file) txtFile.textContent = file;
+        if (bytesAdded) g_downloaded += bytesAdded;
+
+        const dlMB = (g_downloaded / (1024 * 1024)).toFixed(1);
+        const totMB = (g_totalExpected / (1024 * 1024)).toFixed(1);
+        txtBytes.textContent = `${dlMB} MB / ${totMB} MB`;
+
+        const pct = Math.min(99, Math.round((g_downloaded / g_totalExpected) * 100));
+        txtPct.textContent = `${pct}%`;
+        barFill.style.width = `${pct}%`;
       }
-      const gl = origGetContext(type, attributes);
-      if (!gl) return gl;
 
-      const rawEnable = gl.enable.bind(gl);
-      gl.enable = function(cap) { try { rawEnable(cap); } catch (e) {} };
-
-      const rawDisable = gl.disable.bind(gl);
-      gl.disable = function(cap) { try { rawDisable(cap); } catch (e) {} };
-
-      const rawTexImage2D = gl.texImage2D.bind(gl);
-      gl.texImage2D = function(...args) {
-        try { return rawTexImage2D(...args); } catch (e) { return; }
-      };
-
-      const rawTexSubImage2D = gl.texSubImage2D.bind(gl);
-      gl.texSubImage2D = function(...args) {
-        try { return rawTexSubImage2D(...args); } catch (e) { return; }
-      };
-
-      const rawClear = gl.clear.bind(gl);
-      gl.clear = function(m) { try { rawClear(m); } catch (e) {} };
-
-      const rawDrawElements = gl.drawElements.bind(gl);
-      gl.drawElements = function(...args) { try { rawDrawElements(...args); } catch (e) {} };
-
-      return gl;
-    };
-
-    // 3. Audio unlock helper
-    function unlockAudio() {
-      if (typeof Module !== 'undefined' && Module.SDL2 && Module.SDL2.audioContext) {
-        if (Module.SDL2.audioContext.state === 'suspended') {
-          Module.SDL2.audioContext.resume();
+      function showCrash(err) {
+        let msg = '';
+        if (err instanceof Error) {
+          msg = err.stack || err.message;
+        } else if (typeof err === 'string') {
+          msg = err;
+        } else if (err && err.message) {
+          msg = err.message;
+        } else {
+          msg = 'Internal Runtime Exception';
         }
+        crashLog.textContent = msg;
+        crashOverlay.classList.add('active');
+        canvasElement.style.cursor = 'default';
       }
-    }
-    window.addEventListener('click', unlockAudio, { once: false });
-    window.addEventListener('keydown', unlockAudio, { once: false });
 
-    // 4. Split chunk unpacker
-    const SPLIT_FILES = {
-      'background01.data': 5,
-      'd1_canals_01.data': 2,
-      'd1_canals_01a.data': 2,
-      'd1_canals_07.data': 2,
-      'd1_canals_11.data': 2,
-      'd1_eli_01.data': 2,
-      'd1_trainstation_01.data': 3,
-      'd1_trainstation_02.data': 2,
-      'd1_trainstation_03.data': 2,
-      'd1_trainstation_04.data': 2,
-      'd1_trainstation_05.data': 5,
-      'd2_coast_03.data': 2,
-      'd2_coast_09.data': 2
-    };
+      window.onerror = (m, u, l, c, e) => showCrash(e || m);
+      window.onunhandledrejection = (e) => showCrash(e.reason);
 
-    async function assembleChunks(baseName, totalParts) {
-      const buffers = [];
-      let totalLength = 0;
-      for (let i = 1; i <= totalParts; i++) {
-        const pad = String(i).padStart(4, '0');
-        const res = await fetch(`chunks/${baseName}.part${pad}`);
-        if (!res.ok) throw new Error(`Missing ${baseName}.part${pad}`);
-        const buf = await res.arrayBuffer();
-        buffers.push(buf);
-        totalLength += buf.byteLength;
-      }
-      const combined = new Uint8Array(totalLength);
-      let offset = 0;
-      for (let i = 0; i < buffers.length; i++) {
-        combined.set(new Uint8Array(buffers[i]), offset);
-        offset += buffers[i].byteLength;
-      }
-      return combined.buffer;
-    }
-
-    // Intercept network requests so DataLoader fetches assembled split chunks
-    const origFetch = window.fetch.bind(window);
-    window.fetch = async function(input, init) {
-      const url = (typeof input === 'string') ? input : (input && input.url) ? input.url : '';
-      for (const [file, parts] of Object.entries(SPLIT_FILES)) {
-        if (url.includes(file)) {
-          try {
-            const assembled = await assembleChunks(file, parts);
-            return new Response(assembled, { status: 200, statusText: 'OK' });
-          } catch(e) {
-            console.error('[Chunk Assembly Error]:', e);
+      // 2. Isolation Handshake
+      function checkIsolation() {
+        if (window.crossOriginIsolated) {
+          btnStart.disabled = false;
+          btnStart.textContent = 'START ENGINE';
+        } else {
+          btnStart.disabled = true;
+          btnStart.textContent = 'AWAITING ISOLATION...';
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            window.location.reload();
           }
         }
       }
-      return origFetch(input, init);
-    };
 
-    // 5. Worker interceptor to guarantee workers load hl2_launcher.js
-    const SCRIPT_URL = new URL('hl2_launcher.js', window.location.href).href;
-    const OrigWorker = window.Worker;
-    window.Worker = function(scriptURL, options) {
-      let target = scriptURL;
-      if (!target || typeof target !== 'string' || target.endsWith('index.html') || target === window.location.href) {
-        target = SCRIPT_URL;
+      checkIsolation();
+      const isoInterval = setInterval(() => {
+        checkIsolation();
+        if (window.crossOriginIsolated) clearInterval(isoInterval);
+      }, 400);
+
+      // 3. Pointer Lock
+      document.addEventListener('pointerlockchange', () => {
+        if (document.pointerLockElement !== canvasElement) {
+          canvasElement.style.cursor = 'default';
+          document.body.style.cursor = 'default';
+        } else {
+          canvasElement.style.cursor = 'none';
+        }
+      });
+
+      function requestEngineLock() {
+        if (!g_engineInitialized) return;
+        if (document.pointerLockElement === canvasElement) return;
+        try {
+          const p = canvasElement.requestPointerLock();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        } catch(e) {}
       }
-      return new OrigWorker(target, options);
-    };
 
-    // 6. Emscripten Module Definition
-    var Module = {
-      canvas: canvas,
-      canvasElement: canvas,
-      locateFile: (p) => p.replace(/^.*[\\\/]/, ''),
-      mainScriptUrlOrBlob: SCRIPT_URL,
+      canvasElement.addEventListener('click', requestEngineLock);
 
-      arguments: [
-        "-game", "hl2",
-        "-w", "1280",
-        "-h", "800",
-        "-dxlevel", "90",
-        "+mat_hdr_level", "0",
-        "+mat_bumpmap", "0",
-        "+mat_specular", "0",
-        "+mat_motion_blur_enabled", "0",
-        "+r_shadowrendertotexture", "0",
-        "+r_flashlightdepthtexture", "0",
-        "+mat_viewportscale", "1.0",
-        "+mat_forcehardwaresync", "0",
-        "+gl_can_resolve_fbo", "0",
-        "+r_dynamic", "0"
-      ],
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape' || e.key === 'Escape') {
+          if (document.pointerLockElement) document.exitPointerLock();
+          canvasElement.style.cursor = 'default';
+          document.body.style.cursor = 'default';
+        }
+      });
 
-      preRun: [
-        function() {
-          // Automatic Dependency Release Watchdog
-          // Releases load_game_data, loadDylibs, and wasm-instantiate if they hang
-          setInterval(() => {
-            if (typeof runDependencyTracking !== 'undefined') {
-              const hungDeps = ['load_game_data', 'loadDylibs', 'wasm-instantiate', 'idbfs_init'];
-              for (const dep of hungDeps) {
-                if (runDependencyTracking[dep]) {
-                  console.warn(`[Watchdog] Clearing hung dependency: ${dep}`);
-                  try { Module.removeRunDependency(dep); } catch(e) {}
+      // 4. Split Chunk Assembly & Fetch Intercept
+      const SPLIT_FILES = {
+        'background01.data': 5,
+        'd1_canals_01.data': 2,
+        'd1_canals_01a.data': 2,
+        'd1_canals_07.data': 2,
+        'd1_canals_11.data': 2,
+        'd1_eli_01.data': 2,
+        'd1_trainstation_01.data': 3,
+        'd1_trainstation_02.data': 2,
+        'd1_trainstation_03.data': 2,
+        'd1_trainstation_04.data': 2,
+        'd1_trainstation_05.data': 5,
+        'd2_coast_03.data': 2,
+        'd2_coast_09.data': 2
+      };
+
+      const origFetch = window.fetch.bind(window);
+      const g_chunkAssembly = {};
+
+      async function assembleChunks(baseName, totalParts) {
+        if (g_chunkAssembly[baseName]) return g_chunkAssembly[baseName];
+
+        g_chunkAssembly[baseName] = (async () => {
+          const buffers = [];
+          let totalLen = 0;
+          for (let i = 1; i <= totalParts; i++) {
+            const pad = String(i).padStart(4, '0');
+            updateUI('ASSEMBLING CHUNKS', `${baseName} (.part${pad})`);
+            const res = await origFetch(`chunks/${baseName}.part${pad}`);
+            if (!res.ok) throw new Error(`Missing ${baseName}.part${pad}`);
+            const buf = await res.arrayBuffer();
+            updateUI(undefined, undefined, buf.byteLength);
+            buffers.push(buf);
+            totalLen += buf.byteLength;
+          }
+
+          const combined = new Uint8Array(totalLen);
+          let offset = 0;
+          for (let i = 0; i < buffers.length; i++) {
+            combined.set(new Uint8Array(buffers[i]), offset);
+            offset += buffers[i].byteLength;
+            buffers[i] = null;
+          }
+          return combined.buffer;
+        })();
+
+        return g_chunkAssembly[baseName];
+      }
+
+      window.fetch = async function(input, init) {
+        const url = (typeof input === 'string') ? input : (input && input.url) ? input.url : '';
+        if (url.includes('save_console_log')) {
+          return new Response('{"ok":true}', { status: 200, statusText: 'OK' });
+        }
+
+        // Avoid infinite recursion on partial chunk fetches
+        if (url.includes('.part')) {
+          return origFetch(input, init);
+        }
+
+        for (const [file, parts] of Object.entries(SPLIT_FILES)) {
+          if (url.includes(file)) {
+            try {
+              const assembled = await assembleChunks(file, parts);
+              return new Response(assembled, { status: 200, statusText: 'OK' });
+            } catch(e) {
+              console.error('[Chunk Assembly Error]:', e);
+            }
+          }
+        }
+        return origFetch(input, init);
+      };
+
+      // 5. Worker Interception
+      const TARGET_ENGINE_SCRIPT = 'hl2_launcher.js';
+      const SCRIPT_URL = new URL(TARGET_ENGINE_SCRIPT, window.location.href).href;
+      const OrigWorker = window.Worker;
+
+      window.Worker = function(scriptURL, options) {
+        let target = scriptURL;
+        if (!target || typeof target !== 'string' || target.endsWith('index.html') || target === window.location.href) {
+          target = SCRIPT_URL;
+        }
+        return new OrigWorker(target, options);
+      };
+
+      // 6. Emscripten Module
+      window.Module = {
+        canvas: canvasElement,
+        canvasElement: canvasElement,
+        locateFile: (p) => p.replace(/^.*[\\\/]/, ''),
+        mainScriptUrlOrBlob: SCRIPT_URL,
+        spinner: window.spinnerElement,
+        statusElement: window.statusElement,
+        progressElement: window.progressElement,
+
+        arguments: [
+          "-game", "hl2",
+          "-w", "1280",
+          "-h", "800",
+          "-dxlevel", "90",
+          "+mat_hdr_level", "0",
+          "+mat_bumpmap", "0",
+          "+mat_specular", "0",
+          "+mat_motion_blur_enabled", "0",
+          "+r_shadowrendertotexture", "0",
+          "+r_flashlightdepthtexture", "0",
+          "+mat_viewportscale", "1.0",
+          "+mat_forcehardwaresync", "0",
+          "+gl_can_resolve_fbo", "0",
+          "+r_dynamic", "0"
+        ],
+
+        preRun: [
+          function() {
+            // Watchdog: automatically releases hung dependencies after delay
+            setInterval(() => {
+              if (typeof runDependencyTracking !== 'undefined') {
+                const hungList = ['load_game_data', 'loadDylibs', 'wasm-instantiate', 'idbfs_init'];
+                for (const dep of hungList) {
+                  if (runDependencyTracking[dep]) {
+                    console.warn(`[Watchdog] Clearing hung dependency: ${dep}`);
+                    try { Module.removeRunDependency(dep); } catch(e) {}
+                  }
                 }
               }
-            }
-          }, 2500);
+            }, 2500);
 
-          try {
-            const dirs = ["/hl2", "/hl2/cfg", "/hl2/custom", "/hl2/maps", "/platform"];
-            dirs.forEach(d => {
-              try { FS.mkdirTree(d); } catch (e) {}
-            });
+            try {
+              const dirs = ["/hl2", "/hl2/cfg", "/hl2/custom", "/hl2/maps", "/platform"];
+              dirs.forEach(d => {
+                try { FS.mkdirTree(d); } catch (e) {}
+              });
 
-            const fallbackGameInfo = 
+              const fallbackGameInfo = 
 `"GameInfo"
 {
 \tgame\t\t"Half-Life 2"
@@ -289,47 +587,78 @@
 \t}
 }
 `;
-            FS.writeFile("/hl2/gameinfo.txt", fallbackGameInfo);
-          } catch(e) {}
-        }
-      ],
+              FS.writeFile("/hl2/gameinfo.txt", fallbackGameInfo);
+            } catch(e) {}
+          }
+        ],
 
-      postRun: [
-        function() {
-          overlay.classList.add('hidden');
-        }
-      ],
+        postRun: [
+          function() {
+            launcherUi.classList.add('hidden');
+            g_engineInitialized = true;
+          }
+        ],
 
-      print: function(text) {
-        console.log("[Source Engine]:", text);
-        if (text.includes("Game initializing") || text.includes("Host_Init")) {
-          overlay.classList.add('hidden');
-        }
-      },
+        print: function(text) {
+          console.log("[Source Engine]:", text);
+          if (text.includes("Game initializing") || text.includes("Host_Init") || text.includes("Map: background01")) {
+            txtPct.textContent = '100%';
+            barFill.style.width = '100%';
+            updateUI('READY', 'Sector Loaded');
+            setTimeout(() => {
+              launcherUi.classList.add('hidden');
+              g_engineInitialized = true;
+              canvasElement.focus();
+              requestEngineLock();
+            }, 500);
+          }
+        },
 
-      printErr: function(text) {
-        if (text.includes("need to see wasm magic number") || text.includes("touch.cfg")) {
+        printErr: function(text) {
+          if (text.includes("need to see wasm magic number") || text.includes("touch.cfg")) {
+            return;
+          }
+          console.error("[Source Error]:", text);
+        },
+
+        setStatus: function(text) {
+          if (!text) return;
+          updateUI('INITIALIZING', text);
+        },
+
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          if (left > 0) {
+            updateUI('LINKING', `Mounting ${left} runtime modules...`);
+          }
+        }
+      };
+
+      async function startApp() {
+        if (!window.crossOriginIsolated) {
+          alert('SharedArrayBuffer isolation is not active yet. Reloading...');
+          window.location.reload();
           return;
         }
-        console.error("[Source Error]:", text);
-      },
 
-      setStatus: function(text) {
-        if (!text) return;
-        statusLabel.textContent = text;
-      },
+        if (g_launched) return;
+        g_launched = true;
 
-      totalDependencies: 0,
-      monitorRunDependencies: function(left) {
-        this.totalDependencies = Math.max(this.totalDependencies, left);
-        if (left) {
-          const p = Math.round(((this.totalDependencies - left) / this.totalDependencies) * 100);
-          progressBar.style.width = p + "%";
+        btnStart.style.display = 'none';
+        progressBox.style.display = 'block';
+        updateUI('STARTING', 'Mounting hl2_launcher.js...');
+
+        if (typeof AL !== 'undefined' && AL.currentCtx && AL.currentCtx.audioCtx && AL.currentCtx.audioCtx.state === 'suspended') {
+          AL.currentCtx.audioCtx.resume();
         }
-      }
-    };
-  </script>
 
-  <script async src="hl2_launcher.js"></script>
-</body>
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = TARGET_ENGINE_SCRIPT + '?v=' + Date.now();
+        script.onerror = (e) => showCrash('Failed to load ' + TARGET_ENGINE_SCRIPT);
+        document.body.appendChild(script);
+      }
+    </script>
+  </body>
 </html>
