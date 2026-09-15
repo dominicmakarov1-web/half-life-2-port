@@ -5,7 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <title>HALF-LIFE 2 // WEB</title>
 
+    <script>
+      window.coi = {
+        shouldRegister: () => !window.crossOriginIsolated,
+        shouldDeregister: () => false,
+        coepCredentialless: () => true,
+        doReload: () => window.location.reload()
+      };
+    </script>
     <script src="coi-serviceworker.js"></script>
+    <script>
+      if (!window.crossOriginIsolated && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((reg) => {
+          if (reg.active && !navigator.serviceWorker.controller) {
+            window.location.reload();
+          }
+        });
+      }
+    </script>
 
     <style>
       * {
@@ -309,12 +326,10 @@
     </div>
 
     <script type="text/javascript">
-      // 1. Shims for DataLoader legacy UI references
       window.spinnerElement = document.createElement('div');
       window.statusElement = document.createElement('div');
       window.progressElement = document.createElement('progress');
 
-      // 2. Exact split map configuration
       const SPLIT_FILES = {
         'background01.data': 5,
         'd1_canals_01.data': 2,
@@ -348,7 +363,6 @@
       let g_launched = false;
       let g_engineInitialized = false;
 
-      // Absolute URL to hl2_launcher.js so workers can never resolve to index.html
       const SCRIPT_URL = new URL('hl2_launcher.js', window.location.href).href;
 
       function checkIsolation() {
@@ -358,18 +372,19 @@
         } else {
           btnStart.disabled = true;
           btnStart.textContent = 'AWAITING ISOLATION...';
+
           if (navigator.serviceWorker && navigator.serviceWorker.controller) {
             window.location.reload();
           }
         }
       }
 
-      window.addEventListener('load', () => {
+      checkIsolation();
+      const isoInterval = setInterval(() => {
         checkIsolation();
-        setTimeout(checkIsolation, 1000);
-      });
+        if (window.crossOriginIsolated) clearInterval(isoInterval);
+      }, 400);
 
-      // Pointer lock behavior: prevent cursor from vanishing on Escape
       document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement !== canvasElement) {
           canvasElement.style.cursor = 'default';
@@ -444,7 +459,6 @@
         }
       });
 
-      // Relative chunk stitcher
       async function fetchPart(baseName, partIdx) {
         const pad4 = String(partIdx).padStart(4, '0');
         const paths = [
@@ -572,11 +586,9 @@
         return xhr;
       };
 
-      // 3. Worker Interceptor: forces workers to execute hl2_launcher.js
       const OrigWorker = window.Worker;
       window.Worker = function(scriptURL, options) {
         let finalUrl = scriptURL;
-        // If the runtime passes undefined, a relative URL, or an object URL
         if (!scriptURL || typeof scriptURL !== 'string' || scriptURL.endsWith('index.html') || scriptURL === window.location.href) {
           finalUrl = SCRIPT_URL;
         } else if (!scriptURL.startsWith('blob:') && !scriptURL.startsWith('http')) {
@@ -585,7 +597,6 @@
         return new OrigWorker(finalUrl, options);
       };
 
-      // 4. Pre-initialize Module globally before hl2_launcher.js parses
       window.Module = {
         canvas: canvasElement,
         locateFile: (p) => p,
