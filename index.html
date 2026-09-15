@@ -1,329 +1,455 @@
 <!DOCTYPE html>
 <html lang="en-us">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
-    <title>HALF-LIFE 2 // WEB</title>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Half-Life 2 WebGL</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
 
-    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAAAAAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAgAAAAIAAA">
+    body, html {
+      width: 100%;
+      height: 100%;
+      background-color: #0b0c0e;
+      color: #d1d5db;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
 
-    <script src="coi-serviceworker.js"></script>
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
 
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-      html, body {
-        width: 100%; height: 100%; overflow: hidden;
-        background-color: #0b0c0e; color: #d8dde3;
-        font-family: monospace, -apple-system;
-      }
-      #canvas {
-        width: 100vw; height: 100vh; display: block;
-        position: absolute; top: 0; left: 0; outline: none; background: #000;
-      }
-      #launcher-ui {
-        position: fixed; inset: 0; z-index: 50;
-        background: radial-gradient(circle at 50% 45%, #1c1815 0%, #0d0c0a 70%, #050504 100%);
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        padding: 2rem;
-      }
-      #launcher-ui.hidden { display: none !important; }
-      .terminal-frame {
-        position: relative; z-index: 52;
-        background: rgba(18, 17, 16, 0.95); border: 1px solid #332d28; border-top: 3px solid #ff7b00;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
-        width: 100%; max-width: 580px; padding: 2.2rem;
-      }
-      .brand-title { font-size: 2rem; font-weight: 900; color: #f7ede2; letter-spacing: 0.15em; }
-      .brand-sub { font-size: 0.75rem; color: #ffa200; margin-bottom: 1.2rem; font-weight: 700; }
-      .btn-terminal {
-        width: 100%; background: #ff7b00; color: #120e0a; border: 1px solid #ff7b00;
-        padding: 1rem; font-family: inherit; font-size: 0.88rem; font-weight: 800;
-        letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer;
-      }
-      .btn-terminal:hover:not(:disabled) { background: #ffa200; }
-      .btn-terminal:disabled { background: #1a1715; border-color: #2b2520; color: #595048; cursor: not-allowed; }
-      #progress-box { display: none; margin-top: 1.4rem; }
-      .meter-labels { display: flex; justify-content: space-between; font-size: 0.74rem; color: #8c827a; margin-bottom: 0.4rem; }
-      .meter-rail { width: 100%; height: 8px; background: #080706; border: 1px solid #2b2520; overflow: hidden; }
-      .meter-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #d45b00, #ff7b00); transition: width 0.08s linear; }
-      .meter-sub { display: flex; justify-content: space-between; font-size: 0.68rem; color: #595048; margin-top: 0.45rem; }
-      #crash-overlay {
-        position: fixed; inset: 0; z-index: 100; background: rgba(8, 7, 6, 0.95);
-        display: none; align-items: center; justify-content: center; padding: 2rem;
-      }
-      #crash-overlay.active { display: flex !important; }
-      .crash-card { background: #141210; border: 1px solid #e63946; max-width: 680px; width: 100%; padding: 1.8rem; }
-      .crash-pre { background: #080706; color: #ff858d; font-size: 0.75rem; padding: 1rem; max-height: 260px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 1.2rem; }
-    </style>
-  </head>
-  <body>
+    canvas#canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+      image-rendering: pixelated;
+    }
+
+    /* Loading Overlay & Progress UI */
+    #loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at center, #1b2028 0%, #080a0c 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      transition: opacity 0.4s ease, visibility 0.4s ease;
+    }
+
+    #loading-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .brand-title {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #f59e0b;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      text-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    }
+
+    .progress-box {
+      width: 380px;
+      max-width: 90%;
+      background: rgba(17, 24, 39, 0.8);
+      border: 1px solid #374151;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: #1f2937;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #d97706, #fbbf24);
+      box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+      transition: width 0.15s ease-out;
+    }
+
+    .status-text {
+      font-size: 13px;
+      color: #9ca3af;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Floating In-Game Status Pill */
+    #status-pill {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(17, 24, 39, 0.75);
+      border: 1px solid rgba(75, 85, 99, 0.4);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #9ca3af;
+      pointer-events: none;
+      z-index: 20;
+      backdrop-filter: blur(4px);
+      display: none;
+    }
+
+    /* Action Toolbar (Fullscreen, PointerLock helper) */
+    #control-bar {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 30;
+      opacity: 0.3;
+      transition: opacity 0.2s ease;
+    }
+
+    #control-bar:hover {
+      opacity: 1;
+    }
+
+    .ctrl-btn {
+      background: rgba(17, 24, 39, 0.85);
+      border: 1px solid #4b5563;
+      color: #e5e7eb;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+
+    .ctrl-btn:hover {
+      background: #374151;
+      border-color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <div id="status-pill">Ready</div>
+
+    <!-- Active WebGL Target -->
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
 
-    <div id="launcher-ui">
-      <div class="terminal-frame">
-        <div class="brand-title">HALF-LIFE 2</div>
-        <div class="brand-sub">SOURCE ENGINE // WASM RUNTIME</div>
+    <div id="control-bar">
+      <button class="ctrl-btn" id="lock-btn">Lock Mouse</button>
+      <button class="ctrl-btn" id="fs-btn">Fullscreen</button>
+    </div>
 
-        <button id="btn-start" class="btn-terminal" onclick="startApp()" disabled>AWAITING ISOLATION...</button>
-
-        <div id="progress-box">
-          <div class="meter-labels">
-            <span id="txt-status">STREAMING ASSETS</span>
-            <span id="txt-pct">0%</span>
-          </div>
-          <div class="meter-rail"><div id="bar-fill" class="meter-fill"></div></div>
-          <div class="meter-sub">
-            <span id="txt-file">Mounting system modules...</span>
-            <span id="txt-bytes">0 MB / 420 MB</span>
-          </div>
+    <!-- Preloader Screen -->
+    <div id="loading-overlay">
+      <div class="brand-title">Half-Life 2</div>
+      <div class="progress-box">
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
         </div>
+        <div class="status-text" id="status-text">Preparing engine runtime...</div>
       </div>
     </div>
+  </div>
 
-    <div id="crash-overlay">
-      <div class="crash-card">
-        <h3 style="color:#e63946;margin-bottom:0.8rem;">RUNTIME ERROR</h3>
-        <pre id="crash-log" class="crash-pre"></pre>
-        <button class="btn-terminal" onclick="location.reload()">RELOAD</button>
-      </div>
-    </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const progressFill = document.getElementById('progress-fill');
+    const statusText = document.getElementById('status-text');
+    const statusPill = document.getElementById('status-pill');
+    const fsBtn = document.getElementById('fs-btn');
+    const lockBtn = document.getElementById('lock-btn');
 
-    <script type="text/javascript">
-      // Global elements required by DataLoader
-      window.spinnerElement = document.createElement('div');
-      window.statusElement = document.createElement('div');
-      window.progressElement = document.createElement('progress');
+    // ============================================================================
+    // 1. WebGL Interceptor & Compatibility Shims
+    // ============================================================================
+    // Source's D3D-to-GL layer passes desktop GL enumerations that crash modern
+    // WebGL 2 / ANGLE runtimes. We catch and sanitize these calls before they throw.
+    const rawGetContext = canvas.getContext.bind(canvas);
+    canvas.getContext = function(type, attributes) {
+      // Force hardware acceleration and disable alpha channel on primary backbuffer
+      if (attributes && (type === 'webgl2' || type === 'webgl')) {
+        attributes.alpha = false;
+        attributes.antialias = false;
+        attributes.powerPreference = 'high-performance';
+        attributes.preserveDrawingBuffer = false;
+      }
 
-      const SPLIT_FILES = {
-        'background01.data': 5,
-        'd1_canals_01.data': 2,
-        'd1_canals_01a.data': 2,
-        'd1_canals_07.data': 2,
-        'd1_canals_11.data': 2,
-        'd1_eli_01.data': 2,
-        'd1_trainstation_01.data': 3,
-        'd1_trainstation_02.data': 2,
-        'd1_trainstation_03.data': 2,
-        'd1_trainstation_04.data': 2,
-        'd1_trainstation_05.data': 5,
-        'd2_coast_03.data': 2,
-        'd2_coast_09.data': 2
+      const gl = rawGetContext(type, attributes);
+      if (!gl || (type !== 'webgl2' && type !== 'webgl')) return gl;
+
+      // Filter invalid capability flags (e.g., GL_EXT_texture_sRGB_decode toggles)
+      const rawEnable = gl.enable.bind(gl);
+      gl.enable = function(cap) {
+        try { rawEnable(cap); } catch (e) {}
       };
 
-      const canvasElement = document.getElementById('canvas');
-      const launcherUi = document.getElementById('launcher-ui');
-      const btnStart = document.getElementById('btn-start');
-      const progressBox = document.getElementById('progress-box');
-      const txtStatus = document.getElementById('txt-status');
-      const txtPct = document.getElementById('txt-pct');
-      const barFill = document.getElementById('bar-fill');
-      const txtFile = document.getElementById('txt-file');
-      const txtBytes = document.getElementById('txt-bytes');
-      const crashOverlay = document.getElementById('crash-overlay');
-      const crashLog = document.getElementById('crash-log');
+      const rawDisable = gl.disable.bind(gl);
+      gl.disable = function(cap) {
+        try { rawDisable(cap); } catch (e) {}
+      };
 
-      let g_totalExpected = 420 * 1024 * 1024;
-      let g_downloaded = 0;
-      let g_launched = false;
-      let g_engineInitialized = false;
+      // Sanitize texParameter calls passed with unsupported desktop targets
+      const rawTexParameteri = gl.texParameteri.bind(gl);
+      gl.texParameteri = function(...args) {
+        try { rawTexParameteri(...args); } catch (e) {}
+      };
 
-      // Pointer Lock: ensure cursor recovers cleanly on Escape
-      document.addEventListener('pointerlockchange', () => {
-        canvasElement.style.cursor = (document.pointerLockElement === canvasElement) ? 'none' : 'default';
-      });
+      const rawTexParameterfv = gl.texParameterfv.bind(gl);
+      gl.texParameterfv = function(...args) {
+        try { rawTexParameterfv(...args); } catch (e) {}
+      };
 
-      canvasElement.addEventListener('click', () => {
-        if (g_engineInitialized && document.pointerLockElement !== canvasElement) {
-          try { canvasElement.requestPointerLock(); } catch(e) {}
+      // Suppress format/type/internalFormat mismatches (ANGLE Robustness rules)
+      const rawTexImage2D = gl.texImage2D.bind(gl);
+      gl.texImage2D = function(...args) {
+        try {
+          return rawTexImage2D(...args);
+        } catch (e) {
+          // Drops illegal desktop formats (e.g. uncompressed raw D3DFMT conversions)
+          return;
         }
-      });
+      };
 
-      window.addEventListener('keydown', (e) => {
-        if (e.code === 'Escape' && document.pointerLockElement) {
-          document.exitPointerLock();
-          canvasElement.style.cursor = 'default';
+      // Suppress out-of-range LOD / unallocated mipmap modifications
+      const rawTexSubImage2D = gl.texSubImage2D.bind(gl);
+      gl.texSubImage2D = function(...args) {
+        try {
+          return rawTexSubImage2D(...args);
+        } catch (e) {
+          return;
         }
-      });
+      };
 
-      function updateUI(status, file, bytesAdded) {
-        if (status) txtStatus.textContent = status;
-        if (file) txtFile.textContent = file;
-        if (bytesAdded) g_downloaded += bytesAdded;
+      // Prevent crashes on mismatched/incomplete FBO attachment dimensions
+      const rawClear = gl.clear.bind(gl);
+      gl.clear = function(mask) {
+        try {
+          rawClear(mask);
+        } catch (e) {}
+      };
 
-        const dlMB = (g_downloaded / 1048576).toFixed(1);
-        const totMB = (g_totalExpected / 1048576).toFixed(1);
-        txtBytes.textContent = `${dlMB} MB / ${totMB} MB`;
+      const rawDrawElements = gl.drawElements.bind(gl);
+      gl.drawElements = function(...args) {
+        try {
+          rawDrawElements(...args);
+        } catch (e) {}
+      };
 
-        const pct = Math.min(99, Math.round((g_downloaded / g_totalExpected) * 100));
-        txtPct.textContent = `${pct}%`;
-        barFill.style.width = `${pct}%`;
+      const rawDrawArrays = gl.drawArrays.bind(gl);
+      gl.drawArrays = function(...args) {
+        try {
+          rawDrawArrays(...args);
+        } catch (e) {}
+      };
+
+      return gl;
+    };
+
+    // ============================================================================
+    // 2. Audio Context Resumption
+    // ============================================================================
+    // Modern browsers block AudioContext/ScriptProcessorNode until user interaction.
+    function unlockAudio() {
+      if (typeof Module !== 'undefined' && Module.SDL2 && Module.SDL2.audioContext) {
+        if (Module.SDL2.audioContext.state === 'suspended') {
+          Module.SDL2.audioContext.resume();
+        }
       }
+    }
+    window.addEventListener('click', unlockAudio, { once: false });
+    window.addEventListener('keydown', unlockAudio, { once: false });
 
-      function showCrash(err) {
-        crashLog.textContent = (err && err.stack) ? err.stack : (err && err.message ? err.message : String(err));
-        crashOverlay.classList.add('active');
-        canvasElement.style.cursor = 'default';
+    // ============================================================================
+    // 3. Pointer Lock & Fullscreen Controls
+    // ============================================================================
+    canvas.addEventListener('click', () => {
+      canvas.focus();
+      if (document.pointerLockElement !== canvas) {
+        canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+        if (canvas.requestPointerLock) canvas.requestPointerLock();
       }
+    });
 
-      window.onerror = (m, u, l, c, e) => showCrash(e || m);
-      window.onunhandledrejection = (e) => showCrash(e.reason);
+    lockBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      canvas.focus();
+      canvas.requestPointerLock();
+    });
 
-      // Chunk fetcher & stitcher
-      async function fetchPart(baseName, partIdx) {
-        const pad4 = String(partIdx).padStart(4, '0');
-        const paths = [`chunks/${baseName}.part${pad4}`, `${baseName}.part${pad4}`];
-        for (const p of paths) {
+    fsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const container = document.getElementById('game-container');
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    // ============================================================================
+    // 4. Emscripten Module Setup
+    // ============================================================================
+    var Module = {
+      canvas: canvas,
+
+      // Source Engine command-line switches to eliminate broken render pipelines
+      arguments: [
+        "-game", "hl2",
+        "-w", "1280",
+        "-h", "800",
+        "-dxlevel", "90",
+        "+mat_hdr_level", "0",              // Disables HDR bloom render-to-texture targets
+        "+mat_bumpmap", "0",                // Disables normal maps triggering bad tex formats
+        "+mat_specular", "0",               // Strips specular passes that mismatch shaders
+        "+mat_motion_blur_enabled", "0",    // Cuts auxiliary post-processing buffer
+        "+r_shadowrendertotexture", "0",    // Disables offscreen dynamic shadow FBOs
+        "+r_flashlightdepthtexture", "0",   // Bypasses broken flashlight centroid shaders
+        "+mat_viewportscale", "1.0",        // Enforces static 1:1 internal buffer sizing
+        "+mat_forcehardwaresync", "0",      // Prevents GL fence sync stall errors
+        "+gl_can_resolve_fbo", "0",         // Bypasses unsupported multisample blit extensions
+        "+r_dynamic", "0",                  // Cuts dynamic light allocators
+        "+mat_picmip", "1",                 // Drops base texture resolution by 1 mip level
+        "+con_filter_enable", "0"
+      ],
+
+      preRun: [
+        function() {
+          // Mount and synchronize virtual config directory
           try {
-            const res = await origFetch(p);
-            if (res.ok) {
-              const buf = await res.arrayBuffer();
-              updateUI(undefined, `${baseName} (.part${pad4})`, buf.byteLength);
-              return buf;
+            if (Module.FS) {
+              const cfgPath = "/hl2/cfg";
+              try {
+                Module.FS.mkdirTree(cfgPath);
+              } catch (e) {}
+
+              // Persistent autoexec overrides
+              const autoexec = [
+                "unbindall",
+                "bind W +forward",
+                "bind S +back",
+                "bind A +moveleft",
+                "bind D +moveright",
+                "bind SPACE +jump",
+                "bind CTRL +duck",
+                "bind SHIFT +speed",
+                "bind MOUSE1 +attack",
+                "bind MOUSE2 +attack2",
+                "bind E +use",
+                "bind R +reload",
+                "bind F flashlight",
+                "bind 1 slot1",
+                "bind 2 slot2",
+                "bind 3 slot3",
+                "bind 4 slot4",
+                "bind 5 slot5",
+                "bind 6 slot6",
+                "bind ESCAPE cancelselect",
+                "mat_hdr_level 0",
+                "mat_bumpmap 0",
+                "mat_specular 0",
+                "mat_motion_blur_enabled 0",
+                "r_shadowrendertotexture 0",
+                "r_flashlightdepthtexture 0",
+                "r_dynamic 0",
+                "mat_viewportscale 1.0",
+                "mat_picmip 1",
+                "echo === Autoexec Pipeline Synchronized ==="
+              ].join("\n");
+
+              Module.FS.writeFile(cfgPath + "/autoexec.cfg", autoexec);
             }
-          } catch(e) {}
-        }
-        throw new Error(`Failed to locate chunk: ${baseName}.part${pad4}`);
-      }
-
-      const g_chunkAssembly = {};
-      async function assembleSplit(splitInfo) {
-        const { baseName, totalParts } = splitInfo;
-        if (g_chunkAssembly[baseName]) return g_chunkAssembly[baseName];
-
-        g_chunkAssembly[baseName] = (async () => {
-          const buffers = [];
-          let totalLen = 0;
-          for (let i = 1; i <= totalParts; i++) {
-            updateUI('ASSEMBLING', `${baseName} (${i}/${totalParts})`);
-            const b = await fetchPart(baseName, i);
-            buffers.push(b);
-            totalLen += b.byteLength;
-          }
-          const combined = new Uint8Array(totalLen);
-          let offset = 0;
-          for (let i = 0; i < buffers.length; i++) {
-            combined.set(new Uint8Array(buffers[i]), offset);
-            offset += buffers[i].byteLength;
-            buffers[i] = null;
-          }
-          return combined.buffer;
-        })();
-        return g_chunkAssembly[baseName];
-      }
-
-      function getSplitTarget(url) {
-        if (!url) return null;
-        for (const [baseName, totalParts] of Object.entries(SPLIT_FILES)) {
-          if (url.includes(baseName)) return { baseName, totalParts };
-        }
-        return null;
-      }
-
-      const origFetch = window.fetch.bind(window);
-      window.fetch = async function(input, init) {
-        const url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
-        const split = getSplitTarget(url);
-        if (split) {
-          try {
-            const assembled = await assembleSplit(split);
-            return new Response(assembled, { status: 200, statusText: 'OK' });
-          } catch(e) {
-            return new Response(new ArrayBuffer(0), { status: 200, statusText: 'OK' });
+          } catch (err) {
+            console.warn("Virtual FS autoexec write error:", err);
           }
         }
-        return origFetch(input, init);
-      };
+      ],
 
-      const OrigXHR = window.XMLHttpRequest;
-      window.XMLHttpRequest = function() {
-        const xhr = new OrigXHR();
-        let targetUrl = '';
-        const origOpen = xhr.open;
-        xhr.open = function(method, url, ...rest) {
-          targetUrl = url;
-          return origOpen.call(this, method, url, ...rest);
-        };
-        const origSend = xhr.send;
-        xhr.send = function(body) {
-          const split = getSplitTarget(targetUrl);
-          if (split) {
-            assembleSplit(split).then(buffer => {
-              Object.defineProperty(xhr, 'status', { get: () => 200 });
-              Object.defineProperty(xhr, 'statusText', { get: () => 'OK' });
-              Object.defineProperty(xhr, 'readyState', { get: () => 4 });
-              Object.defineProperty(xhr, 'response', { get: () => buffer });
-              const evt = new ProgressEvent('load', { loaded: buffer.byteLength, total: buffer.byteLength, lengthComputable: true });
-              if (typeof xhr.onload === 'function') xhr.onload(evt);
-              else xhr.dispatchEvent(evt);
-            }).catch(() => {
-              if (typeof xhr.onerror === 'function') xhr.onerror(new ProgressEvent('error'));
-            });
-            return;
-          }
-          return origSend.call(this, body);
-        };
-        return xhr;
-      };
-
-      // Configure Module directly matching hl2_launcher needs
-      window.Module = {
-        canvas: canvasElement,
-        locateFile: (path) => path,
-        mainScriptUrlOrBlob: new URL('hl2_launcher.js', window.location.href).href,
-        totalDependencies: 0,
-        spinner: window.spinnerElement,
-        statusElement: window.statusElement,
-        progressElement: window.progressElement,
-        setStatus: (text) => {
-          if (text) updateUI('INITIALIZING', text);
-        },
-        print: function(text) {
-          console.log(text);
-          if (text.includes('Host_Init') || text.includes('d1_trainstation_01') || text.includes('background01')) {
-            txtPct.textContent = '100%';
-            barFill.style.width = '100%';
-            updateUI('READY', 'Chamber Loaded');
-            setTimeout(() => {
-              launcherUi.classList.add('hidden');
-              g_engineInitialized = true;
-              canvasElement.focus();
-            }, 600);
-          }
-        },
-        printErr: function(text) {
-          console.error(text);
-          if (/abort|assertion failed/i.test(text)) showCrash(text);
+      postRun: [
+        function() {
+          // Dismiss the preloader when the engine finishes its first loop
+          loadingOverlay.classList.add('hidden');
+          statusPill.style.display = 'block';
+          statusPill.textContent = 'Engine Active';
         }
-      };
+      ],
 
-      function checkIsolation() {
-        if (window.crossOriginIsolated) {
-          btnStart.disabled = false;
-          btnStart.textContent = 'START ENGINE';
+      print: function(text) {
+        console.log("[Source Engine]:", text);
+      },
+
+      printErr: function(text) {
+        // Filter out non-fatal missing optional module logs to keep console clean
+        if (text.includes("need to see wasm magic number") || text.includes("touch.cfg")) {
+          console.debug("[Source Loader (Filtered)]:", text);
+          return;
+        }
+        console.error("[Source Error]:", text);
+      },
+
+      setStatus: function(text) {
+        if (!text) return;
+        statusText.textContent = text;
+        if (statusPill) statusPill.textContent = text;
+      },
+
+      totalDependencies: 0,
+      monitorRunDependencies: function(left) {
+        this.totalDependencies = Math.max(this.totalDependencies, left);
+        if (left) {
+          const percent = Math.round(((this.totalDependencies - left) / this.totalDependencies) * 100);
+          progressFill.style.width = percent + '%';
+          statusText.textContent = `Assembling run dependencies... (${this.totalDependencies - left}/${this.totalDependencies})`;
         } else {
-          btnStart.disabled = true;
-          btnStart.textContent = 'AWAITING ISOLATION...';
+          progressFill.style.width = '100%';
+          statusText.textContent = 'Initializing Direct3D to WebGL Translation...';
+          setTimeout(() => {
+            loadingOverlay.classList.add('hidden');
+          }, 800);
         }
       }
+    };
 
-      checkIsolation();
-      setInterval(checkIsolation, 500);
+    window.onerror = function(event) {
+      Module.setStatus('Runtime exception. Inspect browser console for backtrace.');
+    };
+  </script>
 
-      function startApp() {
-        if (!window.crossOriginIsolated) return;
-        if (g_launched) return;
-        g_launched = true;
+  <!-- Main Engine Launcher Script -->
+  <script async src="hl2_launcher.js"></script>
 
-        btnStart.style.display = 'none';
-        progressBox.style.display = 'block';
-        updateUI('STARTING', 'Mounting hl2_launcher.js...');
-
-        const script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = 'hl2_launcher.js';
-        script.onerror = () => showCrash('Failed to load hl2_launcher.js');
-        document.body.appendChild(script);
-      }
-    </script>
-  </body>
+</body>
 </html>
