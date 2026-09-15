@@ -4,7 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Half-Life 2 Web</title>
+  
+  <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAAAAAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAgAAAAIAAA">
+
   <script src="coi-serviceworker.js"></script>
+
   <style>
     * {
       box-sizing: border-box;
@@ -92,12 +96,16 @@
       <div class="progress-bar-wrap">
         <div class="progress-bar" id="progress-bar"></div>
       </div>
-      <div class="status" id="status-label">Initializing virtual runtime...</div>
+      <div class="status" id="status-label">Initializing runtime...</div>
     </div>
   </div>
 
   <script>
-    // 1. Fix ReferenceError: canvasElement is not defined
+    // 1. Shims for DataLoader legacy variables (Prevents ReferenceError: spinnerElement is not defined)
+    window.spinnerElement = document.createElement('div');
+    window.statusElement = document.getElementById('status-label');
+    window.progressElement = document.getElementById('progress-bar');
+
     const canvas = document.getElementById('canvas');
     window.canvasElement = canvas;
     window.canvas = canvas;
@@ -106,7 +114,7 @@
     const progressBar = document.getElementById('progress-bar');
     const statusLabel = document.getElementById('status-label');
 
-    // 2. WebGL Compatibility Layer for Source Engine Desktop GL Calls
+    // 2. WebGL Compatibility Shims
     const origGetContext = canvas.getContext.bind(canvas);
     canvas.getContext = function(type, attributes) {
       if (attributes && (type === 'webgl2' || type === 'webgl')) {
@@ -153,36 +161,77 @@
     window.addEventListener('click', unlockAudio, { once: false });
     window.addEventListener('keydown', unlockAudio, { once: false });
 
-    // 4. Asset Stitching & Mounting Routine
-    async function fetchBinary(url) {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status} on ${url}`);
-      return new Uint8Array(await resp.arrayBuffer());
-    }
+    // 4. Split chunk unpacker
+    const SPLIT_FILES = {
+      'background01.data': 5,
+      'd1_canals_01.data': 2,
+      'd1_canals_01a.data': 2,
+      'd1_canals_07.data': 2,
+      'd1_canals_11.data': 2,
+      'd1_eli_01.data': 2,
+      'd1_trainstation_01.data': 3,
+      'd1_trainstation_02.data': 2,
+      'd1_trainstation_03.data': 2,
+      'd1_trainstation_04.data': 2,
+      'd1_trainstation_05.data': 5,
+      'd2_coast_03.data': 2,
+      'd2_coast_09.data': 2
+    };
 
-    async function loadChunkParts(baseName, partCount) {
-      const parts = [];
+    async function assembleChunks(baseName, totalParts) {
+      const buffers = [];
       let totalLength = 0;
-      for (let i = 1; i <= partCount; i++) {
+      for (let i = 1; i <= totalParts; i++) {
         const pad = String(i).padStart(4, '0');
-        statusLabel.textContent = `Downloading ${baseName} (part ${i}/${partCount})...`;
-        const data = await fetchBinary(`chunks/${baseName}.part${pad}`);
-        parts.push(data);
-        totalLength += data.length;
+        const res = await fetch(`chunks/${baseName}.part${pad}`);
+        if (!res.ok) throw new Error(`Missing ${baseName}.part${pad}`);
+        const buf = await res.arrayBuffer();
+        buffers.push(buf);
+        totalLength += buf.byteLength;
       }
-      const full = new Uint8Array(totalLength);
+      const combined = new Uint8Array(totalLength);
       let offset = 0;
-      for (const part of parts) {
-        full.set(part, offset);
-        offset += part.length;
+      for (let i = 0; i < buffers.length; i++) {
+        combined.set(new Uint8Array(buffers[i]), offset);
+        offset += buffers[i].byteLength;
       }
-      return full;
+      return combined.buffer;
     }
 
-    // 5. Emscripten Engine Definition
+    // Intercept network requests so DataLoader fetches assembled split chunks
+    const origFetch = window.fetch.bind(window);
+    window.fetch = async function(input, init) {
+      const url = (typeof input === 'string') ? input : (input && input.url) ? input.url : '';
+      for (const [file, parts] of Object.entries(SPLIT_FILES)) {
+        if (url.includes(file)) {
+          try {
+            const assembled = await assembleChunks(file, parts);
+            return new Response(assembled, { status: 200, statusText: 'OK' });
+          } catch(e) {
+            console.error('[Chunk Assembly Error]:', e);
+          }
+        }
+      }
+      return origFetch(input, init);
+    };
+
+    // 5. Worker interceptor to guarantee workers load hl2_launcher.js
+    const SCRIPT_URL = new URL('hl2_launcher.js', window.location.href).href;
+    const OrigWorker = window.Worker;
+    window.Worker = function(scriptURL, options) {
+      let target = scriptURL;
+      if (!target || typeof target !== 'string' || target.endsWith('index.html') || target === window.location.href) {
+        target = SCRIPT_URL;
+      }
+      return new OrigWorker(target, options);
+    };
+
+    // 6. Emscripten Module Definition
     var Module = {
       canvas: canvas,
       canvasElement: canvas,
+      locateFile: (p) => p.replace(/^.*[\\\/]/, ''),
+      mainScriptUrlOrBlob: SCRIPT_URL,
 
       arguments: [
         "-game", "hl2",
@@ -203,19 +252,27 @@
 
       preRun: [
         function() {
-          // Tell Emscripten to wait until our core bootstrap & background data are loaded
-          addRunDependency('load_bootstrap_data');
+          // Automatic Dependency Release Watchdog
+          // Releases load_game_data, loadDylibs, and wasm-instantiate if they hang
+          setInterval(() => {
+            if (typeof runDependencyTracking !== 'undefined') {
+              const hungDeps = ['load_game_data', 'loadDylibs', 'wasm-instantiate', 'idbfs_init'];
+              for (const dep of hungDeps) {
+                if (runDependencyTracking[dep]) {
+                  console.warn(`[Watchdog] Clearing hung dependency: ${dep}`);
+                  try { Module.removeRunDependency(dep); } catch(e) {}
+                }
+              }
+            }
+          }, 2500);
 
-          (async () => {
-            try {
-              // Ensure base directories
-              const dirs = ["/hl2", "/hl2/cfg", "/hl2/custom", "/hl2/maps", "/platform"];
-              dirs.forEach(d => {
-                try { Module.FS.mkdirTree(d); } catch (e) {}
-              });
+          try {
+            const dirs = ["/hl2", "/hl2/cfg", "/hl2/custom", "/hl2/maps", "/platform"];
+            dirs.forEach(d => {
+              try { FS.mkdirTree(d); } catch (e) {}
+            });
 
-              // Fallback baseline gameinfo.txt
-              const fallbackGameInfo = 
+            const fallbackGameInfo = 
 `"GameInfo"
 {
 \tgame\t\t"Half-Life 2"
@@ -232,30 +289,8 @@
 \t}
 }
 `;
-              Module.FS.writeFile("/hl2/gameinfo.txt", fallbackGameInfo);
-
-              // 1. Download and mount bootstrap.data
-              statusLabel.textContent = "Downloading bootstrap.data...";
-              progressBar.style.width = "20%";
-              const bootstrapBuf = await fetchBinary("chunks/bootstrap.data");
-              Module.FS.writeFile("/bootstrap.data", bootstrapBuf);
-
-              // 2. Download and merge background01 menu map (5 split parts)
-              progressBar.style.width = "40%";
-              const bg01Buf = await loadChunkParts("background01.data", 5);
-              Module.FS.writeFile("/background01.data", bg01Buf);
-              progressBar.style.width = "90%";
-
-              statusLabel.textContent = "Unpacking archives into file system...";
-              console.log("[Launcher] Base chunks successfully mounted.");
-            } catch (err) {
-              console.error("[Launcher] Critical boot data load failure:", err);
-              statusLabel.textContent = "Failed to load base asset chunks. Check console.";
-            } finally {
-              // Release Emscripten to boot the engine
-              removeRunDependency('load_bootstrap_data');
-            }
-          })();
+            FS.writeFile("/hl2/gameinfo.txt", fallbackGameInfo);
+          } catch(e) {}
         }
       ],
 
@@ -267,6 +302,9 @@
 
       print: function(text) {
         console.log("[Source Engine]:", text);
+        if (text.includes("Game initializing") || text.includes("Host_Init")) {
+          overlay.classList.add('hidden');
+        }
       },
 
       printErr: function(text) {
