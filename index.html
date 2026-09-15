@@ -40,7 +40,6 @@
       image-rendering: pixelated;
     }
 
-    /* Loading Overlay & Progress UI */
     #loading-overlay {
       position: absolute;
       top: 0;
@@ -109,7 +108,6 @@
       text-overflow: ellipsis;
     }
 
-    /* Floating In-Game Status Pill */
     #status-pill {
       position: absolute;
       top: 12px;
@@ -126,7 +124,6 @@
       display: none;
     }
 
-    /* Action Toolbar (Fullscreen, PointerLock helper) */
     #control-bar {
       position: absolute;
       bottom: 12px;
@@ -163,8 +160,6 @@
 
   <div id="game-container">
     <div id="status-pill">Ready</div>
-
-    <!-- Active WebGL Target -->
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
 
     <div id="control-bar">
@@ -172,7 +167,6 @@
       <button class="ctrl-btn" id="fs-btn">Fullscreen</button>
     </div>
 
-    <!-- Preloader Screen -->
     <div id="loading-overlay">
       <div class="brand-title">Half-Life 2</div>
       <div class="progress-box">
@@ -193,96 +187,56 @@
     const fsBtn = document.getElementById('fs-btn');
     const lockBtn = document.getElementById('lock-btn');
 
+    let engineHalted = false;
+
     // ============================================================================
-    // 1. WebGL Interceptor & Compatibility Shims
+    // 1. WebGL Interceptors
     // ============================================================================
-    // Source's D3D-to-GL layer passes desktop GL enumerations that crash modern
-    // WebGL 2 / ANGLE runtimes. We catch and sanitize these calls before they throw.
     const rawGetContext = canvas.getContext.bind(canvas);
     canvas.getContext = function(type, attributes) {
-      // Force hardware acceleration and disable alpha channel on primary backbuffer
       if (attributes && (type === 'webgl2' || type === 'webgl')) {
         attributes.alpha = false;
         attributes.antialias = false;
         attributes.powerPreference = 'high-performance';
-        attributes.preserveDrawingBuffer = false;
       }
 
       const gl = rawGetContext(type, attributes);
       if (!gl || (type !== 'webgl2' && type !== 'webgl')) return gl;
 
-      // Filter invalid capability flags (e.g., GL_EXT_texture_sRGB_decode toggles)
       const rawEnable = gl.enable.bind(gl);
-      gl.enable = function(cap) {
-        try { rawEnable(cap); } catch (e) {}
-      };
+      gl.enable = function(cap) { try { rawEnable(cap); } catch (e) {} };
 
       const rawDisable = gl.disable.bind(gl);
-      gl.disable = function(cap) {
-        try { rawDisable(cap); } catch (e) {}
-      };
+      gl.disable = function(cap) { try { rawDisable(cap); } catch (e) {} };
 
-      // Sanitize texParameter calls passed with unsupported desktop targets
       const rawTexParameteri = gl.texParameteri.bind(gl);
-      gl.texParameteri = function(...args) {
-        try { rawTexParameteri(...args); } catch (e) {}
-      };
+      gl.texParameteri = function(...args) { try { rawTexParameteri(...args); } catch (e) {} };
 
       const rawTexParameterfv = gl.texParameterfv.bind(gl);
-      gl.texParameterfv = function(...args) {
-        try { rawTexParameterfv(...args); } catch (e) {}
-      };
+      gl.texParameterfv = function(...args) { try { rawTexParameterfv(...args); } catch (e) {} };
 
-      // Suppress format/type/internalFormat mismatches (ANGLE Robustness rules)
       const rawTexImage2D = gl.texImage2D.bind(gl);
       gl.texImage2D = function(...args) {
-        try {
-          return rawTexImage2D(...args);
-        } catch (e) {
-          // Drops illegal desktop formats (e.g. uncompressed raw D3DFMT conversions)
-          return;
-        }
+        try { return rawTexImage2D(...args); } catch (e) { return; }
       };
 
-      // Suppress out-of-range LOD / unallocated mipmap modifications
       const rawTexSubImage2D = gl.texSubImage2D.bind(gl);
       gl.texSubImage2D = function(...args) {
-        try {
-          return rawTexSubImage2D(...args);
-        } catch (e) {
-          return;
-        }
+        try { return rawTexSubImage2D(...args); } catch (e) { return; }
       };
 
-      // Prevent crashes on mismatched/incomplete FBO attachment dimensions
       const rawClear = gl.clear.bind(gl);
-      gl.clear = function(mask) {
-        try {
-          rawClear(mask);
-        } catch (e) {}
-      };
+      gl.clear = function(mask) { try { rawClear(mask); } catch (e) {} };
 
       const rawDrawElements = gl.drawElements.bind(gl);
-      gl.drawElements = function(...args) {
-        try {
-          rawDrawElements(...args);
-        } catch (e) {}
-      };
-
-      const rawDrawArrays = gl.drawArrays.bind(gl);
-      gl.drawArrays = function(...args) {
-        try {
-          rawDrawArrays(...args);
-        } catch (e) {}
-      };
+      gl.drawElements = function(...args) { try { rawDrawElements(...args); } catch (e) {} };
 
       return gl;
     };
 
     // ============================================================================
-    // 2. Audio Context Resumption
+    // 2. Audio & Input Guarding
     // ============================================================================
-    // Modern browsers block AudioContext/ScriptProcessorNode until user interaction.
     function unlockAudio() {
       if (typeof Module !== 'undefined' && Module.SDL2 && Module.SDL2.audioContext) {
         if (Module.SDL2.audioContext.state === 'suspended') {
@@ -293,10 +247,17 @@
     window.addEventListener('click', unlockAudio, { once: false });
     window.addEventListener('keydown', unlockAudio, { once: false });
 
-    // ============================================================================
-    // 3. Pointer Lock & Fullscreen Controls
-    // ============================================================================
+    // Guard against firing mouse events into stopped worker threads
+    ['mousemove', 'mousedown', 'mouseup', 'wheel', 'keydown', 'keyup'].forEach(eventType => {
+      window.addEventListener(eventType, (e) => {
+        if (engineHalted) {
+          e.stopImmediatePropagation();
+        }
+      }, true);
+    });
+
     canvas.addEventListener('click', () => {
+      if (engineHalted) return;
       canvas.focus();
       if (document.pointerLockElement !== canvas) {
         canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
@@ -306,6 +267,7 @@
 
     lockBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (engineHalted) return;
       canvas.focus();
       canvas.requestPointerLock();
     });
@@ -321,101 +283,136 @@
     });
 
     // ============================================================================
-    // 4. Emscripten Module Setup
+    // 3. Emscripten Module Config & Virtual File System Injection
     // ============================================================================
     var Module = {
       canvas: canvas,
 
-      // Source Engine command-line switches to eliminate broken render pipelines
       arguments: [
         "-game", "hl2",
         "-w", "1280",
         "-h", "800",
         "-dxlevel", "90",
-        "+mat_hdr_level", "0",              // Disables HDR bloom render-to-texture targets
-        "+mat_bumpmap", "0",                // Disables normal maps triggering bad tex formats
-        "+mat_specular", "0",               // Strips specular passes that mismatch shaders
-        "+mat_motion_blur_enabled", "0",    // Cuts auxiliary post-processing buffer
-        "+r_shadowrendertotexture", "0",    // Disables offscreen dynamic shadow FBOs
-        "+r_flashlightdepthtexture", "0",   // Bypasses broken flashlight centroid shaders
-        "+mat_viewportscale", "1.0",        // Enforces static 1:1 internal buffer sizing
-        "+mat_forcehardwaresync", "0",      // Prevents GL fence sync stall errors
-        "+gl_can_resolve_fbo", "0",         // Bypasses unsupported multisample blit extensions
-        "+r_dynamic", "0",                  // Cuts dynamic light allocators
-        "+mat_picmip", "1",                 // Drops base texture resolution by 1 mip level
-        "+con_filter_enable", "0"
+        "+mat_hdr_level", "0",
+        "+mat_bumpmap", "0",
+        "+mat_specular", "0",
+        "+mat_motion_blur_enabled", "0",
+        "+r_shadowrendertotexture", "0",
+        "+r_flashlightdepthtexture", "0",
+        "+mat_viewportscale", "1.0",
+        "+mat_forcehardwaresync", "0",
+        "+gl_can_resolve_fbo", "0",
+        "+r_dynamic", "0",
+        "+mat_picmip", "1"
       ],
 
       preRun: [
         function() {
-          // Mount and synchronize virtual config directory
+          if (!Module.FS) return;
+
           try {
-            if (Module.FS) {
-              const cfgPath = "/hl2/cfg";
-              try {
-                Module.FS.mkdirTree(cfgPath);
-              } catch (e) {}
+            // 1. Ensure required directory structures exist
+            const dirs = ["/hl2", "/hl2/cfg", "/hl2/custom", "/platform"];
+            dirs.forEach(dir => {
+              try { Module.FS.mkdirTree(dir); } catch (e) {}
+            });
 
-              // Persistent autoexec overrides
-              const autoexec = [
-                "unbindall",
-                "bind W +forward",
-                "bind S +back",
-                "bind A +moveleft",
-                "bind D +moveright",
-                "bind SPACE +jump",
-                "bind CTRL +duck",
-                "bind SHIFT +speed",
-                "bind MOUSE1 +attack",
-                "bind MOUSE2 +attack2",
-                "bind E +use",
-                "bind R +reload",
-                "bind F flashlight",
-                "bind 1 slot1",
-                "bind 2 slot2",
-                "bind 3 slot3",
-                "bind 4 slot4",
-                "bind 5 slot5",
-                "bind 6 slot6",
-                "bind ESCAPE cancelselect",
-                "mat_hdr_level 0",
-                "mat_bumpmap 0",
-                "mat_specular 0",
-                "mat_motion_blur_enabled 0",
-                "r_shadowrendertotexture 0",
-                "r_flashlightdepthtexture 0",
-                "r_dynamic 0",
-                "mat_viewportscale 1.0",
-                "mat_picmip 1",
-                "echo === Autoexec Pipeline Synchronized ==="
-              ].join("\n");
+            // 2. Inject gameinfo.txt so engine mounts the directory correctly
+            const gameinfoContent = 
+`"GameInfo"
+{
+	game 		"Half-Life 2"
+	title 		"HALF-LIFE'"
+	title2		"== episode two =="
+	type		singleplayer_only
 
-              Module.FS.writeFile(cfgPath + "/autoexec.cfg", autoexec);
-            }
+	FileSystem
+	{
+		SteamAppId				220
+		ToolsAppId				211
+		
+		SearchPaths
+		{
+			Game				|gameinfo_path|.
+			Game				hl2
+		}
+	}
+}
+`;
+            Module.FS.writeFile("/hl2/gameinfo.txt", gameinfoContent);
+            console.log("[Source PreRun]: Mounted /hl2/gameinfo.txt");
+
+            // 3. Inject autoexec.cfg
+            const autoexecContent = [
+              "unbindall",
+              "bind W +forward",
+              "bind S +back",
+              "bind A +moveleft",
+              "bind D +moveright",
+              "bind SPACE +jump",
+              "bind CTRL +duck",
+              "bind SHIFT +speed",
+              "bind MOUSE1 +attack",
+              "bind MOUSE2 +attack2",
+              "bind E +use",
+              "bind R +reload",
+              "bind F flashlight",
+              "bind 1 slot1",
+              "bind 2 slot2",
+              "bind 3 slot3",
+              "bind 4 slot4",
+              "bind 5 slot5",
+              "bind 6 slot6",
+              "bind ESCAPE cancelselect",
+              "mat_hdr_level 0",
+              "mat_bumpmap 0",
+              "mat_specular 0",
+              "mat_motion_blur_enabled 0",
+              "r_shadowrendertotexture 0",
+              "r_flashlightdepthtexture 0",
+              "r_dynamic 0",
+              "mat_viewportscale 1.0",
+              "mat_picmip 1"
+            ].join("\n");
+
+            Module.FS.writeFile("/hl2/cfg/autoexec.cfg", autoexecContent);
+            console.log("[Source PreRun]: Mounted /hl2/cfg/autoexec.cfg");
+
           } catch (err) {
-            console.warn("Virtual FS autoexec write error:", err);
+            console.error("[Source PreRun Error]:", err);
           }
         }
       ],
 
       postRun: [
         function() {
-          // Dismiss the preloader when the engine finishes its first loop
           loadingOverlay.classList.add('hidden');
           statusPill.style.display = 'block';
-          statusPill.textContent = 'Engine Active';
+          statusPill.textContent = 'Engine Running';
         }
       ],
+
+      onExit: function(status) {
+        engineHalted = true;
+        console.warn("[Source Engine Exit] Status code:", status);
+        statusPill.textContent = 'Engine Halted (' + status + ')';
+      },
+
+      onAbort: function(what) {
+        engineHalted = true;
+        console.error("[Source Engine Abort]:", what);
+      },
 
       print: function(text) {
         console.log("[Source Engine]:", text);
       },
 
       printErr: function(text) {
-        // Filter out non-fatal missing optional module logs to keep console clean
         if (text.includes("need to see wasm magic number") || text.includes("touch.cfg")) {
-          console.debug("[Source Loader (Filtered)]:", text);
           return;
+        }
+        if (text.includes("program exited (with status: 0)")) {
+          engineHalted = true;
         }
         console.error("[Source Error]:", text);
       },
@@ -432,10 +429,10 @@
         if (left) {
           const percent = Math.round(((this.totalDependencies - left) / this.totalDependencies) * 100);
           progressFill.style.width = percent + '%';
-          statusText.textContent = `Assembling run dependencies... (${this.totalDependencies - left}/${this.totalDependencies})`;
+          statusText.textContent = `Loading dependencies (${this.totalDependencies - left}/${this.totalDependencies})...`;
         } else {
           progressFill.style.width = '100%';
-          statusText.textContent = 'Initializing Direct3D to WebGL Translation...';
+          statusText.textContent = 'Starting Engine...';
           setTimeout(() => {
             loadingOverlay.classList.add('hidden');
           }, 800);
@@ -444,12 +441,11 @@
     };
 
     window.onerror = function(event) {
-      Module.setStatus('Runtime exception. Inspect browser console for backtrace.');
+      if (engineHalted) return;
+      Module.setStatus('Runtime exception encountered. Inspect console.');
     };
   </script>
 
-  <!-- Main Engine Launcher Script -->
   <script async src="hl2_launcher.js"></script>
-
 </body>
 </html>
