@@ -5,280 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <title>HALF-LIFE 2 // WEB</title>
 
-    <!-- Inline blank favicon to stop 404 spam -->
     <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAAAAAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAgAAAAIAAA">
 
-    <script>
-      window.coi = {
-        shouldRegister: () => !window.crossOriginIsolated,
-        shouldDeregister: () => false,
-        coepCredentialless: () => true,
-        doReload: () => window.location.reload()
-      };
-    </script>
     <script src="coi-serviceworker.js"></script>
-    <script>
-      if (!window.crossOriginIsolated && 'serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then((reg) => {
-          if (reg.active && !navigator.serviceWorker.controller) {
-            window.location.reload();
-          }
-        });
-      }
-    </script>
 
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-
-      @font-face {
-        font-family: 'LambdaMono';
-        src: local('Consolas'), local('Lucida Console'), local('Courier New'), monospace;
-      }
-
+      * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
       html, body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background-color: #0b0c0e;
-        color: #d8dde3;
-        font-family: 'LambdaMono', -apple-system, monospace;
+        width: 100%; height: 100%; overflow: hidden;
+        background-color: #0b0c0e; color: #d8dde3;
+        font-family: monospace, -apple-system;
       }
-
       #canvas {
-        width: 100vw;
-        height: 100vh;
-        display: block;
-        position: absolute;
-        top: 0;
-        left: 0;
-        outline: none;
-        background: #000;
-        cursor: default;
+        width: 100vw; height: 100vh; display: block;
+        position: absolute; top: 0; left: 0; outline: none; background: #000;
       }
-
       #launcher-ui {
-        position: fixed;
-        inset: 0;
-        z-index: 50;
+        position: fixed; inset: 0; z-index: 50;
         background: radial-gradient(circle at 50% 45%, #1c1815 0%, #0d0c0a 70%, #050504 100%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
         padding: 2rem;
       }
-
-      #launcher-ui::before {
-        content: " ";
-        display: block;
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
-        background-size: 100% 4px;
-        z-index: 51;
-        pointer-events: none;
-        opacity: 0.6;
-      }
-
-      #launcher-ui.hidden {
-        display: none !important;
-      }
-
+      #launcher-ui.hidden { display: none !important; }
       .terminal-frame {
-        position: relative;
-        z-index: 52;
-        background: rgba(18, 17, 16, 0.95);
-        border: 1px solid #332d28;
-        border-top: 3px solid #ff7b00;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 30px rgba(255, 123, 0, 0.12);
-        width: 100%;
-        max-width: 580px;
-        padding: 2.2rem;
+        position: relative; z-index: 52;
+        background: rgba(18, 17, 16, 0.95); border: 1px solid #332d28; border-top: 3px solid #ff7b00;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+        width: 100%; max-width: 580px; padding: 2.2rem;
       }
-
-      .header-meta {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px dashed #2d2621;
-        padding-bottom: 0.8rem;
-        margin-bottom: 1.5rem;
-        font-size: 0.72rem;
-        letter-spacing: 0.15em;
-        color: #8c827a;
-      }
-
-      .header-meta .tag-id {
-        color: #ff7b00;
-        font-weight: 700;
-      }
-
-      .brand-row {
-        display: flex;
-        align-items: baseline;
-        gap: 14px;
-        margin-bottom: 0.4rem;
-      }
-
-      .brand-title {
-        font-size: 2.1rem;
-        font-weight: 900;
-        letter-spacing: 0.18em;
-        color: #f7ede2;
-        text-transform: uppercase;
-        text-shadow: 0 0 16px rgba(255, 123, 0, 0.35);
-      }
-
-      .brand-sub {
-        font-size: 0.75rem;
-        color: #ffa200;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        font-weight: 700;
-      }
-
-      .log-console {
-        background: #080706;
-        border: 1px solid #1f1b18;
-        padding: 0.9rem 1.1rem;
-        margin: 1.4rem 0;
-        font-size: 0.78rem;
-        line-height: 1.6;
-        color: #8c827a;
-      }
-
-      .log-console .log-entry {
-        display: block;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .log-console .log-entry span {
-        color: #ff7b00;
-      }
-
+      .brand-title { font-size: 2rem; font-weight: 900; color: #f7ede2; letter-spacing: 0.15em; }
+      .brand-sub { font-size: 0.75rem; color: #ffa200; margin-bottom: 1.2rem; font-weight: 700; }
       .btn-terminal {
-        width: 100%;
-        background: #ff7b00;
-        color: #120e0a;
-        border: 1px solid #ff7b00;
-        padding: 1rem;
-        font-family: inherit;
-        font-size: 0.88rem;
-        font-weight: 800;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        cursor: pointer;
-        transition: all 0.15s ease-out;
+        width: 100%; background: #ff7b00; color: #120e0a; border: 1px solid #ff7b00;
+        padding: 1rem; font-family: inherit; font-size: 0.88rem; font-weight: 800;
+        letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer;
       }
-
-      .btn-terminal:hover:not(:disabled) {
-        background: #ffa200;
-        border-color: #ffa200;
-        box-shadow: 0 0 20px rgba(255, 162, 0, 0.4);
-      }
-
-      .btn-terminal:disabled {
-        background: #1a1715;
-        border-color: #2b2520;
-        color: #595048;
-        cursor: not-allowed;
-      }
-
-      #progress-box {
-        display: none;
-        margin-top: 1.4rem;
-      }
-
-      .meter-labels {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.74rem;
-        color: #8c827a;
-        margin-bottom: 0.4rem;
-        letter-spacing: 0.08em;
-      }
-
-      .meter-labels #txt-pct {
-        color: #ff7b00;
-        font-weight: bold;
-      }
-
-      .meter-rail {
-        width: 100%;
-        height: 8px;
-        background: #080706;
-        border: 1px solid #2b2520;
-        overflow: hidden;
-      }
-
-      .meter-fill {
-        width: 0%;
-        height: 100%;
-        background: linear-gradient(90deg, #d45b00, #ff7b00);
-        box-shadow: 0 0 10px rgba(255, 123, 0, 0.5);
-        transition: width 0.08s linear;
-      }
-
-      .meter-sub {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.68rem;
-        color: #595048;
-        margin-top: 0.45rem;
-      }
-
+      .btn-terminal:hover:not(:disabled) { background: #ffa200; }
+      .btn-terminal:disabled { background: #1a1715; border-color: #2b2520; color: #595048; cursor: not-allowed; }
+      #progress-box { display: none; margin-top: 1.4rem; }
+      .meter-labels { display: flex; justify-content: space-between; font-size: 0.74rem; color: #8c827a; margin-bottom: 0.4rem; }
+      .meter-rail { width: 100%; height: 8px; background: #080706; border: 1px solid #2b2520; overflow: hidden; }
+      .meter-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #d45b00, #ff7b00); transition: width 0.08s linear; }
+      .meter-sub { display: flex; justify-content: space-between; font-size: 0.68rem; color: #595048; margin-top: 0.45rem; }
       #crash-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 100;
-        background: rgba(8, 7, 6, 0.95);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
+        position: fixed; inset: 0; z-index: 100; background: rgba(8, 7, 6, 0.95);
+        display: none; align-items: center; justify-content: center; padding: 2rem;
       }
-
-      #crash-overlay.active {
-        display: flex !important;
-      }
-
-      .crash-card {
-        background: #141210;
-        border: 1px solid #e63946;
-        max-width: 680px;
-        width: 100%;
-        padding: 1.8rem;
-        box-shadow: 0 0 40px rgba(230, 57, 70, 0.2);
-      }
-
-      .crash-title {
-        color: #e63946;
-        font-size: 0.88rem;
-        font-weight: bold;
-        letter-spacing: 0.15em;
-        text-transform: uppercase;
-        margin-bottom: 0.8rem;
-      }
-
-      .crash-pre {
-        background: #080706;
-        color: #ff858d;
-        font-size: 0.75rem;
-        padding: 1rem;
-        max-height: 260px;
-        overflow-y: auto;
-        white-space: pre-wrap;
-        border: 1px solid #2b2520;
-        margin-bottom: 1.2rem;
-      }
+      #crash-overlay.active { display: flex !important; }
+      .crash-card { background: #141210; border: 1px solid #e63946; max-width: 680px; width: 100%; padding: 1.8rem; }
+      .crash-pre { background: #080706; color: #ff858d; font-size: 0.75rem; padding: 1rem; max-height: 260px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 1.2rem; }
     </style>
   </head>
   <body>
@@ -286,21 +61,8 @@
 
     <div id="launcher-ui">
       <div class="terminal-frame">
-        <div class="header-meta">
-          <span>CITY 17 SECTOR-4 TERMINAL</span>
-          <span class="tag-id">LAMBDA // WASM</span>
-        </div>
-
-        <div class="brand-row">
-          <div class="brand-title">HALF-LIFE 2</div>
-          <div class="brand-sub">SRC-V1.0</div>
-        </div>
-
-        <div class="log-console">
-          <div class="log-entry">> <span>MOUNT</span>: HL2 VPK REPOSITORIES DETECTED</div>
-          <div class="log-entry">> <span>CHUNK_SYS</span>: SUB-50MB SPLIT PIPELINE READY</div>
-          <div class="log-entry">> <span>TARGET_BIN</span>: HL2_LAUNCHER.JS</div>
-        </div>
+        <div class="brand-title">HALF-LIFE 2</div>
+        <div class="brand-sub">SOURCE ENGINE // WASM RUNTIME</div>
 
         <button id="btn-start" class="btn-terminal" onclick="startApp()" disabled>AWAITING ISOLATION...</button>
 
@@ -309,11 +71,9 @@
             <span id="txt-status">STREAMING ASSETS</span>
             <span id="txt-pct">0%</span>
           </div>
-          <div class="meter-rail">
-            <div id="bar-fill" class="meter-fill"></div>
-          </div>
+          <div class="meter-rail"><div id="bar-fill" class="meter-fill"></div></div>
           <div class="meter-sub">
-            <span id="txt-file">Initializing chunk pipeline...</span>
+            <span id="txt-file">Mounting system modules...</span>
             <span id="txt-bytes">0 MB / 420 MB</span>
           </div>
         </div>
@@ -322,13 +82,14 @@
 
     <div id="crash-overlay">
       <div class="crash-card">
-        <div class="crash-title">ENGINE INTERCEPT FAULT</div>
+        <h3 style="color:#e63946;margin-bottom:0.8rem;">RUNTIME ERROR</h3>
         <pre id="crash-log" class="crash-pre"></pre>
-        <button class="btn-terminal" onclick="location.reload()">RE-INITIALIZE CONTAINER</button>
+        <button class="btn-terminal" onclick="location.reload()">RELOAD</button>
       </div>
     </div>
 
     <script type="text/javascript">
+      // Global elements required by DataLoader
       window.spinnerElement = document.createElement('div');
       window.statusElement = document.createElement('div');
       window.progressElement = document.createElement('progress');
@@ -366,57 +127,21 @@
       let g_launched = false;
       let g_engineInitialized = false;
 
-      const TARGET_ENGINE_SCRIPT = 'hl2_launcher.js';
-      const SCRIPT_URL = new URL(TARGET_ENGINE_SCRIPT, window.location.href).href;
-
-      function checkIsolation() {
-        if (window.crossOriginIsolated) {
-          btnStart.disabled = false;
-          btnStart.textContent = 'START ENGINE';
-        } else {
-          btnStart.disabled = true;
-          btnStart.textContent = 'AWAITING ISOLATION...';
-
-          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-            window.location.reload();
-          }
-        }
-      }
-
-      checkIsolation();
-      const isoInterval = setInterval(() => {
-        checkIsolation();
-        if (window.crossOriginIsolated) clearInterval(isoInterval);
-      }, 400);
-
+      // Pointer Lock: ensure cursor recovers cleanly on Escape
       document.addEventListener('pointerlockchange', () => {
-        if (document.pointerLockElement !== canvasElement) {
-          canvasElement.style.cursor = 'default';
-          document.body.style.cursor = 'default';
-        } else {
-          canvasElement.style.cursor = 'none';
+        canvasElement.style.cursor = (document.pointerLockElement === canvasElement) ? 'none' : 'default';
+      });
+
+      canvasElement.addEventListener('click', () => {
+        if (g_engineInitialized && document.pointerLockElement !== canvasElement) {
+          try { canvasElement.requestPointerLock(); } catch(e) {}
         }
       });
 
-      function requestEngineLock() {
-        if (!g_engineInitialized) return;
-        if (document.pointerLockElement === canvasElement) return;
-
-        try {
-          const p = canvasElement.requestPointerLock();
-          if (p && typeof p.catch === 'function') p.catch(() => {});
-        } catch(e) {}
-      }
-
-      canvasElement.addEventListener('click', requestEngineLock);
-
       window.addEventListener('keydown', (e) => {
-        if (e.code === 'Escape' || e.key === 'Escape') {
-          if (document.pointerLockElement) {
-            document.exitPointerLock();
-          }
+        if (e.code === 'Escape' && document.pointerLockElement) {
+          document.exitPointerLock();
           canvasElement.style.cursor = 'default';
-          document.body.style.cursor = 'default';
         }
       });
 
@@ -425,8 +150,8 @@
         if (file) txtFile.textContent = file;
         if (bytesAdded) g_downloaded += bytesAdded;
 
-        const dlMB = (g_downloaded / (1024 * 1024)).toFixed(1);
-        const totMB = (g_totalExpected / (1024 * 1024)).toFixed(1);
+        const dlMB = (g_downloaded / 1048576).toFixed(1);
+        const totMB = (g_totalExpected / 1048576).toFixed(1);
         txtBytes.textContent = `${dlMB} MB / ${totMB} MB`;
 
         const pct = Math.min(99, Math.round((g_downloaded / g_totalExpected) * 100));
@@ -435,17 +160,7 @@
       }
 
       function showCrash(err) {
-        let msg = '';
-        if (err instanceof Error) {
-          msg = err.stack || err.message;
-        } else if (typeof err === 'string') {
-          msg = err;
-        } else if (err && err.message) {
-          msg = err.message;
-        } else {
-          msg = 'Internal Runtime Exception';
-        }
-        crashLog.textContent = msg;
+        crashLog.textContent = (err && err.stack) ? err.stack : (err && err.message ? err.message : String(err));
         crashOverlay.classList.add('active');
         canvasElement.style.cursor = 'default';
       }
@@ -453,23 +168,10 @@
       window.onerror = (m, u, l, c, e) => showCrash(e || m);
       window.onunhandledrejection = (e) => showCrash(e.reason);
 
-      var g_pendingResize = null;
-      window.addEventListener('resize', () => {
-        const w = window.innerWidth, h = window.innerHeight;
-        g_pendingResize = [w, h];
-        if (window.Module && Module._JSRequestResize) {
-          Module._JSRequestResize(w, h);
-          g_pendingResize = null;
-        }
-      });
-
+      // Chunk fetcher & stitcher
       async function fetchPart(baseName, partIdx) {
         const pad4 = String(partIdx).padStart(4, '0');
-        const paths = [
-          `chunks/${baseName}.part${pad4}`,
-          `${baseName}.part${pad4}`
-        ];
-
+        const paths = [`chunks/${baseName}.part${pad4}`, `${baseName}.part${pad4}`];
         for (const p of paths) {
           try {
             const res = await origFetch(p);
@@ -497,7 +199,6 @@
             buffers.push(b);
             totalLen += b.byteLength;
           }
-
           const combined = new Uint8Array(totalLen);
           let offset = 0;
           for (let i = 0; i < buffers.length; i++) {
@@ -505,10 +206,8 @@
             offset += buffers[i].byteLength;
             buffers[i] = null;
           }
-          buffers.length = 0;
           return combined.buffer;
         })();
-
         return g_chunkAssembly[baseName];
       }
 
@@ -522,11 +221,7 @@
 
       const origFetch = window.fetch.bind(window);
       window.fetch = async function(input, init) {
-        const url = (typeof input === 'string') ? input : (input && input.url) ? input.url : '';
-        if (url.includes('save_console_log')) {
-          return new Response('{"ok":true}', { status: 200, statusText: 'OK' });
-        }
-
+        const url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
         const split = getSplitTarget(url);
         if (split) {
           try {
@@ -543,27 +238,13 @@
       window.XMLHttpRequest = function() {
         const xhr = new OrigXHR();
         let targetUrl = '';
-        let isPost = false;
-
         const origOpen = xhr.open;
         xhr.open = function(method, url, ...rest) {
           targetUrl = url;
-          if (method.toUpperCase() === 'POST') isPost = true;
           return origOpen.call(this, method, url, ...rest);
         };
-
         const origSend = xhr.send;
         xhr.send = function(body) {
-          if (isPost && targetUrl.includes('save_console_log')) {
-            setTimeout(() => {
-              Object.defineProperty(xhr, 'status', { get: () => 200 });
-              Object.defineProperty(xhr, 'statusText', { get: () => 'OK' });
-              Object.defineProperty(xhr, 'readyState', { get: () => 4 });
-              if (typeof xhr.onload === 'function') xhr.onload(new ProgressEvent('load'));
-            }, 0);
-            return;
-          }
-
           const split = getSplitTarget(targetUrl);
           if (split) {
             assembleSplit(split).then(buffer => {
@@ -571,17 +252,11 @@
               Object.defineProperty(xhr, 'statusText', { get: () => 'OK' });
               Object.defineProperty(xhr, 'readyState', { get: () => 4 });
               Object.defineProperty(xhr, 'response', { get: () => buffer });
-              Object.defineProperty(xhr, 'responseText', { get: () => '' });
-
               const evt = new ProgressEvent('load', { loaded: buffer.byteLength, total: buffer.byteLength, lengthComputable: true });
-              if (typeof xhr.onprogress === 'function') xhr.onprogress(evt);
-              if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange(new Event('readystatechange'));
               if (typeof xhr.onload === 'function') xhr.onload(evt);
               else xhr.dispatchEvent(evt);
-              if (typeof xhr.onloadend === 'function') xhr.onloadend(new ProgressEvent('loadend'));
-            }).catch(e => {
+            }).catch(() => {
               if (typeof xhr.onerror === 'function') xhr.onerror(new ProgressEvent('error'));
-              xhr.dispatchEvent(new ProgressEvent('error'));
             });
             return;
           }
@@ -590,21 +265,11 @@
         return xhr;
       };
 
-      const OrigWorker = window.Worker;
-      window.Worker = function(scriptURL, options) {
-        let finalUrl = scriptURL;
-        if (!scriptURL || typeof scriptURL !== 'string' || scriptURL.endsWith('index.html') || scriptURL.endsWith('index.js') || scriptURL === window.location.href) {
-          finalUrl = SCRIPT_URL;
-        } else if (!scriptURL.startsWith('blob:') && !scriptURL.startsWith('http')) {
-          finalUrl = new URL(scriptURL, window.location.href).href;
-        }
-        return new OrigWorker(finalUrl, options);
-      };
-
+      // Configure Module directly matching hl2_launcher needs
       window.Module = {
         canvas: canvasElement,
-        locateFile: (p) => p,
-        mainScriptUrlOrBlob: SCRIPT_URL,
+        locateFile: (path) => path,
+        mainScriptUrlOrBlob: new URL('hl2_launcher.js', window.location.href).href,
         totalDependencies: 0,
         spinner: window.spinnerElement,
         statusElement: window.statusElement,
@@ -612,92 +277,40 @@
         setStatus: (text) => {
           if (text) updateUI('INITIALIZING', text);
         },
-        monitorRunDependencies: (left) => {
-          if (left > 0) updateUI('LINKING', `Mounting ${left} runtime modules...`);
-        },
         print: function(text) {
           console.log(text);
-          if (text.includes('Game initializing') || text.includes('Host_Init') || text.includes('Map: background01') || text.includes('Map: d1_trainstation_01')) {
+          if (text.includes('Host_Init') || text.includes('d1_trainstation_01') || text.includes('background01')) {
             txtPct.textContent = '100%';
             barFill.style.width = '100%';
-            updateUI('READY', 'Sector Loaded');
+            updateUI('READY', 'Chamber Loaded');
             setTimeout(() => {
               launcherUi.classList.add('hidden');
               g_engineInitialized = true;
               canvasElement.focus();
-              requestEngineLock();
-            }, 500);
+            }, 600);
           }
         },
         printErr: function(text) {
           console.error(text);
-          if (/crash|abort|runtimeerror|fatal|exception|assertion failed/i.test(text)) {
-            showCrash(text);
-          }
-        },
-        onRuntimeInitialized: function() {
-          if (window.g_pendingResize && Module._JSRequestResize) {
-            Module._JSRequestResize(g_pendingResize[0], g_pendingResize[1]);
-            window.g_pendingResize = null;
-          }
-        },
-        preRun: [
-          function() {
-            const origRemove = Module.removeRunDependency;
-            if (typeof origRemove === 'function') {
-              Module.removeRunDependency = function(id) {
-                if (typeof runDependencyTracking !== 'undefined' && !runDependencyTracking[id]) return;
-                try { origRemove.call(Module, id); } catch(e) {}
-              };
-            }
-
-            const watchdog = setInterval(() => {
-              if (typeof FS !== 'undefined') {
-                try {
-                  const chk = FS.analyzePath('/hl2/maps/d1_trainstation_01.bsp');
-                  if (chk && chk.exists) {
-                    txtPct.textContent = '100%';
-                    barFill.style.width = '100%';
-                    updateUI('READY', 'Point Insertion Ready.');
-                    setTimeout(() => {
-                      launcherUi.classList.add('hidden');
-                      g_engineInitialized = true;
-                      canvasElement.focus();
-                      requestEngineLock();
-                    }, 1200);
-                    clearInterval(watchdog);
-                  }
-                } catch(e) {}
-              }
-            }, 1000);
-
-            setInterval(() => {
-              if (typeof runDependencyTracking !== 'undefined') {
-                for (const dep in runDependencyTracking) {
-                  if (dep === 'loadDylibs' || dep === 'load_game_data') {
-                    try { Module.removeRunDependency(dep); } catch(e) {}
-                  }
-                }
-              }
-            }, 3000);
-
-            if (typeof FS !== 'undefined') {
-              FS.syncfs = (p, cb) => {
-                const fn = (typeof p === 'function') ? p : cb;
-                if (fn) setTimeout(() => fn(null), 0);
-              };
-            }
-          }
-        ]
+          if (/abort|assertion failed/i.test(text)) showCrash(text);
+        }
       };
 
-      async function startApp() {
-        if (!window.crossOriginIsolated) {
-          alert('SharedArrayBuffer isolation is not active yet. Reloading...');
-          window.location.reload();
-          return;
+      function checkIsolation() {
+        if (window.crossOriginIsolated) {
+          btnStart.disabled = false;
+          btnStart.textContent = 'START ENGINE';
+        } else {
+          btnStart.disabled = true;
+          btnStart.textContent = 'AWAITING ISOLATION...';
         }
+      }
 
+      checkIsolation();
+      setInterval(checkIsolation, 500);
+
+      function startApp() {
+        if (!window.crossOriginIsolated) return;
         if (g_launched) return;
         g_launched = true;
 
@@ -705,14 +318,10 @@
         progressBox.style.display = 'block';
         updateUI('STARTING', 'Mounting hl2_launcher.js...');
 
-        if (typeof AL !== 'undefined' && AL.currentCtx && AL.currentCtx.audioCtx && AL.currentCtx.audioCtx.state === 'suspended') {
-          AL.currentCtx.audioCtx.resume();
-        }
-
         const script = document.createElement('script');
         script.type = 'text/javascript';
-        script.src = TARGET_ENGINE_SCRIPT + '?v=' + Date.now();
-        script.onerror = (e) => showCrash('Failed to load ' + TARGET_ENGINE_SCRIPT);
+        script.src = 'hl2_launcher.js';
+        script.onerror = () => showCrash('Failed to load hl2_launcher.js');
         document.body.appendChild(script);
       }
     </script>
