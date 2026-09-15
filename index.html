@@ -309,7 +309,7 @@
     </div>
 
     <script type="text/javascript">
-      // Emscripten legacy UI boilerplate shims to prevent DataLoader ReferenceErrors
+      // Emscripten legacy boilerplate UI elements to prevent DataLoader ReferenceErrors
       window.spinnerElement = document.createElement('div');
       window.statusElement = document.createElement('div');
       window.progressElement = document.createElement('progress');
@@ -347,7 +347,7 @@
       let g_launched = false;
       let g_engineInitialized = false;
 
-      // Pointer Lock & Escape Fix
+      // Pointer lock behavior: prevent cursor from getting stuck on escape
       document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement !== canvasElement) {
           canvasElement.style.cursor = 'default';
@@ -362,10 +362,8 @@
         if (document.pointerLockElement === canvasElement) return;
 
         try {
-          const promise = canvasElement.requestPointerLock();
-          if (promise && typeof promise.catch === 'function') {
-            promise.catch(() => {});
-          }
+          const p = canvasElement.requestPointerLock();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
         } catch(e) {}
       }
 
@@ -396,7 +394,17 @@
       }
 
       function showCrash(err) {
-        crashLog.textContent = (err && err.stack) ? err.stack : (typeof err === 'string' ? err : JSON.stringify(err));
+        let msg = '';
+        if (err instanceof Error) {
+          msg = err.stack || err.message;
+        } else if (typeof err === 'string') {
+          msg = err;
+        } else if (err && err.message) {
+          msg = err.message;
+        } else {
+          msg = 'Internal Runtime Exception (Check Browser Console for full trace)';
+        }
+        crashLog.textContent = msg;
         crashOverlay.classList.add('active');
         canvasElement.style.cursor = 'default';
       }
@@ -414,7 +422,7 @@
         }
       });
 
-      // Local relative chunk assembly
+      // Relative path chunk stitcher
       async function fetchPart(baseName, partIdx) {
         const pad4 = String(partIdx).padStart(4, '0');
         const paths = [
@@ -542,33 +550,8 @@
         return xhr;
       };
 
-      // Thread mock for environments without SharedArrayBuffer
-      window.Worker = function(scriptURL, options) {
-        const mockWorker = {
-          onmessage: null,
-          onerror: null,
-          postMessage: function(msg) {
-            if (!msg) return;
-            if (msg.cmd === 'load' || msg.cmd === 'run') {
-              setTimeout(() => {
-                if (typeof mockWorker.onmessage === 'function') {
-                  mockWorker.onmessage({ data: { cmd: 'loaded' } });
-                  mockWorker.onmessage({ data: { cmd: 'ready' } });
-                }
-              }, 0);
-            }
-          },
-          terminate: function() {},
-          addEventListener: function(event, fn) {
-            if (event === 'message') mockWorker.onmessage = fn;
-            if (event === 'error') mockWorker.onerror = fn;
-          },
-          removeEventListener: function() {}
-        };
-        return mockWorker;
-      };
-
-      var Module = {
+      // Expose Module globally so hl2_launcher.js attaches cleanly
+      window.Module = {
         canvas: canvasElement,
         locateFile: (p) => p,
         totalDependencies: 0,
@@ -686,41 +669,20 @@
 
         btnStart.style.display = 'none';
         progressBox.style.display = 'block';
-        updateUI('STARTING', 'Reading local index.js...');
+        updateUI('STARTING', 'Mounting hl2_launcher.js...');
 
         if (typeof AL !== 'undefined' && AL.currentCtx && AL.currentCtx.audioCtx && AL.currentCtx.audioCtx.state === 'suspended') {
           AL.currentCtx.audioCtx.resume();
         }
 
-        try {
-          const res = await origFetch('index.js');
-          if (!res.ok) throw new Error('Missing index.js in local directory');
-          let scriptText = await res.text();
+        const scriptName = 'hl2_launcher.js';
+        Module.mainScriptUrlOrBlob = scriptName;
 
-          // Patch pthread_create to execute routine on the main queue
-          scriptText = scriptText.replace(
-            /function ___pthread_create_js\([^)]*\)\s*\{[\s\S]*?return \w+;?\s*\}/,
-            `function ___pthread_create_js(pthread_ptr, attr, startRoutine, arg) {
-              if (typeof getWasmTableEntry !== 'undefined') {
-                try {
-                  var fn = getWasmTableEntry(startRoutine);
-                  setTimeout(function() { fn(arg); }, 0);
-                } catch(e) {}
-              }
-              return 0;
-            }`
-          );
-          scriptText = scriptText.replace(/Atomics\.wait\([^)]*\)/g, '0');
-
-          const blob = new Blob([scriptText], { type: 'application/javascript' });
-          const script = document.createElement('script');
-          script.type = 'text/javascript';
-          script.src = URL.createObjectURL(blob);
-          script.onerror = (e) => showCrash('Execution error on index.js: ' + e);
-          document.body.appendChild(script);
-        } catch(err) {
-          showCrash(err);
-        }
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = scriptName;
+        script.onerror = (e) => showCrash(`Failed to load ${scriptName}: verify the file exists in the root directory.`);
+        document.body.appendChild(script);
       }
     </script>
   </body>
