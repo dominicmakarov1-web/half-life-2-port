@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Half-Life 2 WebGL</title>
+  <title>Half-Life 2 Web</title>
+  <script src="coi-serviceworker.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -12,16 +13,14 @@
       user-select: none;
       -webkit-user-select: none;
     }
-
     body, html {
       width: 100%;
       height: 100%;
-      background-color: #0b0c0e;
-      color: #d1d5db;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #000;
+      color: #ccc;
+      font-family: monospace;
       overflow: hidden;
     }
-
     #game-container {
       position: relative;
       width: 100vw;
@@ -29,191 +28,100 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #000;
     }
-
     canvas#canvas {
       width: 100%;
       height: 100%;
       display: block;
       outline: none;
-      image-rendering: pixelated;
     }
-
     #loading-overlay {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: radial-gradient(circle at center, #1b2028 0%, #080a0c 100%);
+      background: #0d0f12;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 50;
-      transition: opacity 0.4s ease, visibility 0.4s ease;
+      z-index: 1000;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
     }
-
     #loading-overlay.hidden {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
     }
-
-    .brand-title {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 2px;
+    .title {
+      font-size: 24px;
+      font-weight: bold;
       color: #f59e0b;
-      margin-bottom: 24px;
-      text-transform: uppercase;
-      text-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+      margin-bottom: 20px;
+      letter-spacing: 1px;
     }
-
-    .progress-box {
-      width: 380px;
-      max-width: 90%;
-      background: rgba(17, 24, 39, 0.8);
-      border: 1px solid #374151;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    }
-
-    .progress-track {
-      width: 100%;
-      height: 8px;
-      background: #1f2937;
-      border-radius: 4px;
+    .progress-bar-wrap {
+      width: 340px;
+      max-width: 85%;
+      height: 10px;
+      background: #1f242d;
+      border-radius: 5px;
       overflow: hidden;
-      position: relative;
       margin-bottom: 12px;
+      border: 1px solid #374151;
     }
-
-    .progress-fill {
+    .progress-bar {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #d97706, #fbbf24);
-      box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
-      transition: width 0.15s ease-out;
+      background: #f59e0b;
+      transition: width 0.1s linear;
     }
-
-    .status-text {
+    .status {
       font-size: 13px;
       color: #9ca3af;
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    #status-pill {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      background: rgba(17, 24, 39, 0.75);
-      border: 1px solid rgba(75, 85, 99, 0.4);
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 12px;
-      color: #9ca3af;
-      pointer-events: none;
-      z-index: 20;
-      backdrop-filter: blur(4px);
-      display: none;
-    }
-
-    #control-bar {
-      position: absolute;
-      bottom: 12px;
-      right: 12px;
-      display: flex;
-      gap: 8px;
-      z-index: 30;
-      opacity: 0.3;
-      transition: opacity 0.2s ease;
-    }
-
-    #control-bar:hover {
-      opacity: 1;
-    }
-
-    .ctrl-btn {
-      background: rgba(17, 24, 39, 0.85);
-      border: 1px solid #4b5563;
-      color: #e5e7eb;
-      padding: 6px 12px;
-      font-size: 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      backdrop-filter: blur(4px);
-    }
-
-    .ctrl-btn:hover {
-      background: #374151;
-      border-color: #6b7280;
     }
   </style>
 </head>
 <body>
 
   <div id="game-container">
-    <div id="status-pill">Ready</div>
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
-
-    <div id="control-bar">
-      <button class="ctrl-btn" id="lock-btn">Lock Mouse</button>
-      <button class="ctrl-btn" id="fs-btn">Fullscreen</button>
-    </div>
-
     <div id="loading-overlay">
-      <div class="brand-title">Half-Life 2</div>
-      <div class="progress-box">
-        <div class="progress-track">
-          <div class="progress-fill" id="progress-fill"></div>
-        </div>
-        <div class="status-text" id="status-text">Preparing engine runtime...</div>
+      <div class="title">HALF-LIFE 2</div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progress-bar"></div>
       </div>
+      <div class="status" id="status-label">Initializing virtual runtime...</div>
     </div>
   </div>
 
   <script>
+    // 1. Fix ReferenceError: canvasElement is not defined
     const canvas = document.getElementById('canvas');
-    const loadingOverlay = document.getElementById('loading-overlay');
-    const progressFill = document.getElementById('progress-fill');
-    const statusText = document.getElementById('status-text');
-    const statusPill = document.getElementById('status-pill');
-    const fsBtn = document.getElementById('fs-btn');
-    const lockBtn = document.getElementById('lock-btn');
+    window.canvasElement = canvas;
+    window.canvas = canvas;
 
-    let engineHalted = false;
+    const overlay = document.getElementById('loading-overlay');
+    const progressBar = document.getElementById('progress-bar');
+    const statusLabel = document.getElementById('status-label');
 
-    // ============================================================================
-    // 1. WebGL Interceptors
-    // ============================================================================
-    const rawGetContext = canvas.getContext.bind(canvas);
+    // 2. WebGL Compatibility Layer for Source Engine Desktop GL Calls
+    const origGetContext = canvas.getContext.bind(canvas);
     canvas.getContext = function(type, attributes) {
       if (attributes && (type === 'webgl2' || type === 'webgl')) {
         attributes.alpha = false;
         attributes.antialias = false;
         attributes.powerPreference = 'high-performance';
       }
-
-      const gl = rawGetContext(type, attributes);
-      if (!gl || (type !== 'webgl2' && type !== 'webgl')) return gl;
+      const gl = origGetContext(type, attributes);
+      if (!gl) return gl;
 
       const rawEnable = gl.enable.bind(gl);
       gl.enable = function(cap) { try { rawEnable(cap); } catch (e) {} };
 
       const rawDisable = gl.disable.bind(gl);
       gl.disable = function(cap) { try { rawDisable(cap); } catch (e) {} };
-
-      const rawTexParameteri = gl.texParameteri.bind(gl);
-      gl.texParameteri = function(...args) { try { rawTexParameteri(...args); } catch (e) {} };
-
-      const rawTexParameterfv = gl.texParameterfv.bind(gl);
-      gl.texParameterfv = function(...args) { try { rawTexParameterfv(...args); } catch (e) {} };
 
       const rawTexImage2D = gl.texImage2D.bind(gl);
       gl.texImage2D = function(...args) {
@@ -226,7 +134,7 @@
       };
 
       const rawClear = gl.clear.bind(gl);
-      gl.clear = function(mask) { try { rawClear(mask); } catch (e) {} };
+      gl.clear = function(m) { try { rawClear(m); } catch (e) {} };
 
       const rawDrawElements = gl.drawElements.bind(gl);
       gl.drawElements = function(...args) { try { rawDrawElements(...args); } catch (e) {} };
@@ -234,9 +142,7 @@
       return gl;
     };
 
-    // ============================================================================
-    // 2. Audio & Input Guarding
-    // ============================================================================
+    // 3. Audio unlock helper
     function unlockAudio() {
       if (typeof Module !== 'undefined' && Module.SDL2 && Module.SDL2.audioContext) {
         if (Module.SDL2.audioContext.state === 'suspended') {
@@ -247,46 +153,36 @@
     window.addEventListener('click', unlockAudio, { once: false });
     window.addEventListener('keydown', unlockAudio, { once: false });
 
-    // Guard against firing mouse events into stopped worker threads
-    ['mousemove', 'mousedown', 'mouseup', 'wheel', 'keydown', 'keyup'].forEach(eventType => {
-      window.addEventListener(eventType, (e) => {
-        if (engineHalted) {
-          e.stopImmediatePropagation();
-        }
-      }, true);
-    });
+    // 4. Asset Stitching & Mounting Routine
+    async function fetchBinary(url) {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} on ${url}`);
+      return new Uint8Array(await resp.arrayBuffer());
+    }
 
-    canvas.addEventListener('click', () => {
-      if (engineHalted) return;
-      canvas.focus();
-      if (document.pointerLockElement !== canvas) {
-        canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
-        if (canvas.requestPointerLock) canvas.requestPointerLock();
+    async function loadChunkParts(baseName, partCount) {
+      const parts = [];
+      let totalLength = 0;
+      for (let i = 1; i <= partCount; i++) {
+        const pad = String(i).padStart(4, '0');
+        statusLabel.textContent = `Downloading ${baseName} (part ${i}/${partCount})...`;
+        const data = await fetchBinary(`chunks/${baseName}.part${pad}`);
+        parts.push(data);
+        totalLength += data.length;
       }
-    });
-
-    lockBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (engineHalted) return;
-      canvas.focus();
-      canvas.requestPointerLock();
-    });
-
-    fsBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const container = document.getElementById('game-container');
-      if (!document.fullscreenElement) {
-        container.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen();
+      const full = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const part of parts) {
+        full.set(part, offset);
+        offset += part.length;
       }
-    });
+      return full;
+    }
 
-    // ============================================================================
-    // 3. Emscripten Module Config & Virtual File System Injection
-    // ============================================================================
+    // 5. Emscripten Engine Definition
     var Module = {
       canvas: canvas,
+      canvasElement: canvas,
 
       arguments: [
         "-game", "hl2",
@@ -302,106 +198,72 @@
         "+mat_viewportscale", "1.0",
         "+mat_forcehardwaresync", "0",
         "+gl_can_resolve_fbo", "0",
-        "+r_dynamic", "0",
-        "+mat_picmip", "1"
+        "+r_dynamic", "0"
       ],
 
       preRun: [
         function() {
-          if (!Module.FS) return;
+          // Tell Emscripten to wait until our core bootstrap & background data are loaded
+          addRunDependency('load_bootstrap_data');
 
-          try {
-            // 1. Ensure required directory structures exist
-            const dirs = ["/hl2", "/hl2/cfg", "/hl2/custom", "/platform"];
-            dirs.forEach(dir => {
-              try { Module.FS.mkdirTree(dir); } catch (e) {}
-            });
+          (async () => {
+            try {
+              // Ensure base directories
+              const dirs = ["/hl2", "/hl2/cfg", "/hl2/custom", "/hl2/maps", "/platform"];
+              dirs.forEach(d => {
+                try { Module.FS.mkdirTree(d); } catch (e) {}
+              });
 
-            // 2. Inject gameinfo.txt so engine mounts the directory correctly
-            const gameinfoContent = 
+              // Fallback baseline gameinfo.txt
+              const fallbackGameInfo = 
 `"GameInfo"
 {
-	game 		"Half-Life 2"
-	title 		"HALF-LIFE'"
-	title2		"== episode two =="
-	type		singleplayer_only
-
-	FileSystem
-	{
-		SteamAppId				220
-		ToolsAppId				211
-		
-		SearchPaths
-		{
-			Game				|gameinfo_path|.
-			Game				hl2
-		}
-	}
+\tgame\t\t"Half-Life 2"
+\ttitle\t\t"HALF-LIFE 2"
+\ttype\t\tsingleplayer_only
+\tFileSystem
+\t{
+\t\tSteamAppId\t\t\t\t220
+\t\tSearchPaths
+\t\t{
+\t\t\tGame\t\t\t\t|gameinfo_path|.
+\t\t\tGame\t\t\t\thl2
+\t\t}
+\t}
 }
 `;
-            Module.FS.writeFile("/hl2/gameinfo.txt", gameinfoContent);
-            console.log("[Source PreRun]: Mounted /hl2/gameinfo.txt");
+              Module.FS.writeFile("/hl2/gameinfo.txt", fallbackGameInfo);
 
-            // 3. Inject autoexec.cfg
-            const autoexecContent = [
-              "unbindall",
-              "bind W +forward",
-              "bind S +back",
-              "bind A +moveleft",
-              "bind D +moveright",
-              "bind SPACE +jump",
-              "bind CTRL +duck",
-              "bind SHIFT +speed",
-              "bind MOUSE1 +attack",
-              "bind MOUSE2 +attack2",
-              "bind E +use",
-              "bind R +reload",
-              "bind F flashlight",
-              "bind 1 slot1",
-              "bind 2 slot2",
-              "bind 3 slot3",
-              "bind 4 slot4",
-              "bind 5 slot5",
-              "bind 6 slot6",
-              "bind ESCAPE cancelselect",
-              "mat_hdr_level 0",
-              "mat_bumpmap 0",
-              "mat_specular 0",
-              "mat_motion_blur_enabled 0",
-              "r_shadowrendertotexture 0",
-              "r_flashlightdepthtexture 0",
-              "r_dynamic 0",
-              "mat_viewportscale 1.0",
-              "mat_picmip 1"
-            ].join("\n");
+              // 1. Download and mount bootstrap.data
+              statusLabel.textContent = "Downloading bootstrap.data...";
+              progressBar.style.width = "20%";
+              const bootstrapBuf = await fetchBinary("chunks/bootstrap.data");
+              Module.FS.writeFile("/bootstrap.data", bootstrapBuf);
 
-            Module.FS.writeFile("/hl2/cfg/autoexec.cfg", autoexecContent);
-            console.log("[Source PreRun]: Mounted /hl2/cfg/autoexec.cfg");
+              // 2. Download and merge background01 menu map (5 split parts)
+              progressBar.style.width = "40%";
+              const bg01Buf = await loadChunkParts("background01.data", 5);
+              Module.FS.writeFile("/background01.data", bg01Buf);
+              progressBar.style.width = "90%";
 
-          } catch (err) {
-            console.error("[Source PreRun Error]:", err);
-          }
+              statusLabel.textContent = "Unpacking archives into file system...";
+              console.log("[Launcher] Base chunks successfully mounted.");
+            } catch (err) {
+              console.error("[Launcher] Critical boot data load failure:", err);
+              statusLabel.textContent = "Failed to load base asset chunks. Check console.";
+            } finally {
+              // Release Emscripten to boot the engine
+              removeRunDependency('load_bootstrap_data');
+            }
+          })();
         }
       ],
 
       postRun: [
         function() {
-          loadingOverlay.classList.add('hidden');
-          statusPill.style.display = 'block';
-          statusPill.textContent = 'Engine Running';
+          overlay.classList.add('hidden');
         }
       ],
-
-      onExit: function(status) {
-        engineHalted = true;
-        console.warn("[Source Engine Exit] Status code:", status);
-        statusPill.textContent = 'Engine Halted (' + status + ')';
-      },
-
-      onAbort: function(what) {
-        engineHalted = true;
-        console.error("[Source Engine Abort]:", what);
-      },
 
       print: function(text) {
         console.log("[Source Engine]:", text);
@@ -411,38 +273,22 @@
         if (text.includes("need to see wasm magic number") || text.includes("touch.cfg")) {
           return;
         }
-        if (text.includes("program exited (with status: 0)")) {
-          engineHalted = true;
-        }
         console.error("[Source Error]:", text);
       },
 
       setStatus: function(text) {
         if (!text) return;
-        statusText.textContent = text;
-        if (statusPill) statusPill.textContent = text;
+        statusLabel.textContent = text;
       },
 
       totalDependencies: 0,
       monitorRunDependencies: function(left) {
         this.totalDependencies = Math.max(this.totalDependencies, left);
         if (left) {
-          const percent = Math.round(((this.totalDependencies - left) / this.totalDependencies) * 100);
-          progressFill.style.width = percent + '%';
-          statusText.textContent = `Loading dependencies (${this.totalDependencies - left}/${this.totalDependencies})...`;
-        } else {
-          progressFill.style.width = '100%';
-          statusText.textContent = 'Starting Engine...';
-          setTimeout(() => {
-            loadingOverlay.classList.add('hidden');
-          }, 800);
+          const p = Math.round(((this.totalDependencies - left) / this.totalDependencies) * 100);
+          progressBar.style.width = p + "%";
         }
       }
-    };
-
-    window.onerror = function(event) {
-      if (engineHalted) return;
-      Module.setStatus('Runtime exception encountered. Inspect console.');
     };
   </script>
 
