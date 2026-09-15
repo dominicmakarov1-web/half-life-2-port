@@ -406,30 +406,33 @@
         if (window.crossOriginIsolated) clearInterval(isoInterval);
       }, 400);
 
-      // 3. Pointer Lock
+      // 3. Proper Cursor & Pointer Lock Handler
+      // Synchronize cursor styling with browser state
       document.addEventListener('pointerlockchange', () => {
-        if (document.pointerLockElement !== canvasElement) {
-          canvasElement.style.cursor = 'default';
-          document.body.style.cursor = 'default';
-        } else {
-          canvasElement.style.cursor = 'none';
+        const isLocked = document.pointerLockElement === canvasElement;
+        canvasElement.style.cursor = isLocked ? 'none' : 'default';
+        document.body.style.cursor = isLocked ? 'none' : 'default';
+      });
+
+      // User-initiated lock: only locks when clicking the canvas intentionally
+      canvasElement.addEventListener('mousedown', (e) => {
+        if (!g_engineInitialized) return;
+
+        // If the engine asks for lock or we click inside active gameplay
+        if (document.pointerLockElement !== canvasElement && e.button === 0) {
+          try {
+            const req = canvasElement.requestPointerLock();
+            if (req && typeof req.catch === 'function') req.catch(() => {});
+          } catch(err) {}
         }
       });
 
-      function requestEngineLock() {
-        if (!g_engineInitialized) return;
-        if (document.pointerLockElement === canvasElement) return;
-        try {
-          const p = canvasElement.requestPointerLock();
-          if (p && typeof p.catch === 'function') p.catch(() => {});
-        } catch(e) {}
-      }
-
-      canvasElement.addEventListener('click', requestEngineLock);
-
+      // Escape releases the cursor cleanly
       window.addEventListener('keydown', (e) => {
         if (e.code === 'Escape' || e.key === 'Escape') {
-          if (document.pointerLockElement) document.exitPointerLock();
+          if (document.pointerLockElement) {
+            document.exitPointerLock();
+          }
           canvasElement.style.cursor = 'default';
           document.body.style.cursor = 'default';
         }
@@ -491,7 +494,7 @@
           return new Response('{"ok":true}', { status: 200, statusText: 'OK' });
         }
 
-        // Avoid infinite recursion on partial chunk fetches
+        // Direct fetch for parts to prevent recursion loops
         if (url.includes('.part')) {
           return origFetch(input, init);
         }
@@ -522,7 +525,7 @@
         return new OrigWorker(target, options);
       };
 
-      // 6. Emscripten Module
+      // 6. Emscripten Module Configuration
       window.Module = {
         canvas: canvasElement,
         canvasElement: canvasElement,
@@ -551,7 +554,7 @@
 
         preRun: [
           function() {
-            // Watchdog: automatically releases hung dependencies after delay
+            // Watchdog that releases hung run dependencies
             setInterval(() => {
               if (typeof runDependencyTracking !== 'undefined') {
                 const hungList = ['load_game_data', 'loadDylibs', 'wasm-instantiate', 'idbfs_init'];
@@ -609,7 +612,6 @@
               launcherUi.classList.add('hidden');
               g_engineInitialized = true;
               canvasElement.focus();
-              requestEngineLock();
             }, 500);
           }
         },
