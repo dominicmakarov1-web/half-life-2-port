@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <title>HALF-LIFE 2 // WEB</title>
 
-    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAAAAAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAgAAAAIAAA">
+    <link rel="icon" href="assets/hl2.png">
 
     <script>
       window.coi = {
@@ -44,7 +44,7 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background-color: #0b0c0e;
+        background-color: #000;
         color: #d8dde3;
         font-family: 'LambdaMono', -apple-system, monospace;
       }
@@ -281,7 +281,7 @@
     </style>
   </head>
   <body>
-    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <canvas id="canvas" tabindex="-1"></canvas>
 
     <div id="launcher-ui">
       <div class="terminal-frame">
@@ -298,7 +298,7 @@
         <div class="log-console">
           <div class="log-entry">> <span>MOUNT</span>: 33 DYNAMIC SHARED OBJECTS IDENTIFIED</div>
           <div class="log-entry">> <span>CHUNK_SYS</span>: SUB-50MB SPLIT PIPELINE READY</div>
-          <div class="log-entry">> <span>TARGET_BIN</span>: HL2_LAUNCHER.JS</div>
+          <div class="log-entry">> <span>INPUT_MODE</span>: HYBRID CURSOR / POINTER LOCK</div>
         </div>
 
         <button id="btn-start" class="btn-terminal" onclick="startApp()" disabled>AWAITING ISOLATION...</button>
@@ -328,7 +328,6 @@
     </div>
 
     <script type="text/javascript">
-      // 1. UI Elements & Hooks
       const canvasElement = document.getElementById('canvas');
       const launcherUi = document.getElementById('launcher-ui');
       const btnStart = document.getElementById('btn-start');
@@ -341,7 +340,6 @@
       const crashOverlay = document.getElementById('crash-overlay');
       const crashLog = document.getElementById('crash-log');
 
-      // Global shims for DataLoader
       window.spinnerElement = document.createElement('div');
       window.statusElement = txtStatus;
       window.progressElement = document.createElement('progress');
@@ -386,7 +384,6 @@
       window.onerror = (m, u, l, c, e) => showCrash(e || m);
       window.onunhandledrejection = (e) => showCrash(e.reason);
 
-      // 2. Isolation Handshake
       function checkIsolation() {
         if (window.crossOriginIsolated) {
           btnStart.disabled = false;
@@ -406,39 +403,31 @@
         if (window.crossOriginIsolated) clearInterval(isoInterval);
       }, 400);
 
-      // 3. Proper Cursor & Pointer Lock Handler
-      // Synchronize cursor styling with browser state
+      // --- CURSOR & POINTER LOCK LOGIC ---
+      // Keep canvas resolution synced to inner window size so clicks land accurately on UI buttons
+      function resizeCanvas() {
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+
       document.addEventListener('pointerlockchange', () => {
         const isLocked = document.pointerLockElement === canvasElement;
         canvasElement.style.cursor = isLocked ? 'none' : 'default';
         document.body.style.cursor = isLocked ? 'none' : 'default';
       });
 
-      // User-initiated lock: only locks when clicking the canvas intentionally
-      canvasElement.addEventListener('mousedown', (e) => {
-        if (!g_engineInitialized) return;
-
-        // If the engine asks for lock or we click inside active gameplay
-        if (document.pointerLockElement !== canvasElement && e.button === 0) {
-          try {
-            const req = canvasElement.requestPointerLock();
-            if (req && typeof req.catch === 'function') req.catch(() => {});
-          } catch(err) {}
-        }
-      });
-
-      // Escape releases the cursor cleanly
+      // Unlock cleanly on Escape
       window.addEventListener('keydown', (e) => {
         if (e.code === 'Escape' || e.key === 'Escape') {
           if (document.pointerLockElement) {
             document.exitPointerLock();
           }
-          canvasElement.style.cursor = 'default';
-          document.body.style.cursor = 'default';
         }
       });
 
-      // 4. Split Chunk Assembly & Fetch Intercept
+      // Split chunk stitcher
       const SPLIT_FILES = {
         'background01.data': 5,
         'd1_canals_01.data': 2,
@@ -494,7 +483,6 @@
           return new Response('{"ok":true}', { status: 200, statusText: 'OK' });
         }
 
-        // Direct fetch for parts to prevent recursion loops
         if (url.includes('.part')) {
           return origFetch(input, init);
         }
@@ -512,7 +500,6 @@
         return origFetch(input, init);
       };
 
-      // 5. Worker Interception
       const TARGET_ENGINE_SCRIPT = 'hl2_launcher.js';
       const SCRIPT_URL = new URL(TARGET_ENGINE_SCRIPT, window.location.href).href;
       const OrigWorker = window.Worker;
@@ -525,7 +512,6 @@
         return new OrigWorker(target, options);
       };
 
-      // 6. Emscripten Module Configuration
       window.Module = {
         canvas: canvasElement,
         canvasElement: canvasElement,
@@ -554,7 +540,6 @@
 
         preRun: [
           function() {
-            // Watchdog that releases hung run dependencies
             setInterval(() => {
               if (typeof runDependencyTracking !== 'undefined') {
                 const hungList = ['load_game_data', 'loadDylibs', 'wasm-instantiate', 'idbfs_init'];
@@ -599,6 +584,7 @@
           function() {
             launcherUi.classList.add('hidden');
             g_engineInitialized = true;
+            resizeCanvas();
           }
         ],
 
@@ -611,6 +597,7 @@
             setTimeout(() => {
               launcherUi.classList.add('hidden');
               g_engineInitialized = true;
+              resizeCanvas();
               canvasElement.focus();
             }, 500);
           }
