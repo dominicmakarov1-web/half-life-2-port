@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <title>HALF-LIFE 2 // WEB</title>
 
+    <!-- Inline blank favicon to stop 404 spam -->
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAAAAAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAgAAAAIAAA">
+
     <script>
       window.coi = {
         shouldRegister: () => !window.crossOriginIsolated,
@@ -296,7 +299,7 @@
         <div class="log-console">
           <div class="log-entry">> <span>MOUNT</span>: HL2 VPK REPOSITORIES DETECTED</div>
           <div class="log-entry">> <span>CHUNK_SYS</span>: SUB-50MB SPLIT PIPELINE READY</div>
-          <div class="log-entry">> <span>POINT_INSERTION</span>: D1_TRAINSTATION_01.BSP</div>
+          <div class="log-entry">> <span>TARGET_BIN</span>: HL2_LAUNCHER.JS</div>
         </div>
 
         <button id="btn-start" class="btn-terminal" onclick="startApp()" disabled>AWAITING ISOLATION...</button>
@@ -363,7 +366,8 @@
       let g_launched = false;
       let g_engineInitialized = false;
 
-      const SCRIPT_URL = new URL('hl2_launcher.js', window.location.href).href;
+      const TARGET_ENGINE_SCRIPT = 'hl2_launcher.js';
+      const SCRIPT_URL = new URL(TARGET_ENGINE_SCRIPT, window.location.href).href;
 
       function checkIsolation() {
         if (window.crossOriginIsolated) {
@@ -589,7 +593,7 @@
       const OrigWorker = window.Worker;
       window.Worker = function(scriptURL, options) {
         let finalUrl = scriptURL;
-        if (!scriptURL || typeof scriptURL !== 'string' || scriptURL.endsWith('index.html') || scriptURL === window.location.href) {
+        if (!scriptURL || typeof scriptURL !== 'string' || scriptURL.endsWith('index.html') || scriptURL.endsWith('index.js') || scriptURL === window.location.href) {
           finalUrl = SCRIPT_URL;
         } else if (!scriptURL.startsWith('blob:') && !scriptURL.startsWith('http')) {
           finalUrl = new URL(scriptURL, window.location.href).href;
@@ -707,8 +711,8 @@
 
         const script = document.createElement('script');
         script.type = 'text/javascript';
-        script.src = 'hl2_launcher.js';
-        script.onerror = (e) => showCrash('Failed to load hl2_launcher.js');
+        script.src = TARGET_ENGINE_SCRIPT + '?v=' + Date.now();
+        script.onerror = (e) => showCrash('Failed to load ' + TARGET_ENGINE_SCRIPT);
         document.body.appendChild(script);
       }
     </script>
