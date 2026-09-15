@@ -282,7 +282,7 @@
           <div class="log-entry">> <span>POINT_INSERTION</span>: D1_TRAINSTATION_01.BSP</div>
         </div>
 
-        <button id="btn-start" class="btn-terminal" onclick="startApp()">START ENGINE</button>
+        <button id="btn-start" class="btn-terminal" onclick="startApp()" disabled>AWAITING ISOLATION...</button>
 
         <div id="progress-box">
           <div class="meter-labels">
@@ -309,7 +309,7 @@
     </div>
 
     <script type="text/javascript">
-      // Emscripten legacy boilerplate UI elements to prevent DataLoader ReferenceErrors
+      // Emscripten legacy boilerplate UI shims
       window.spinnerElement = document.createElement('div');
       window.statusElement = document.createElement('div');
       window.progressElement = document.createElement('progress');
@@ -346,6 +346,25 @@
       let g_downloaded = 0;
       let g_launched = false;
       let g_engineInitialized = false;
+
+      // Ensure SharedArrayBuffer isolation is verified before letting the user click Start
+      function checkIsolation() {
+        if (window.crossOriginIsolated) {
+          btnStart.disabled = false;
+          btnStart.textContent = 'START ENGINE';
+        } else {
+          btnStart.disabled = true;
+          btnStart.textContent = 'AWAITING ISOLATION...';
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            window.location.reload();
+          }
+        }
+      }
+
+      window.addEventListener('load', () => {
+        checkIsolation();
+        setTimeout(checkIsolation, 1000);
+      });
 
       // Pointer lock behavior: prevent cursor from getting stuck on escape
       document.addEventListener('pointerlockchange', () => {
@@ -402,7 +421,7 @@
         } else if (err && err.message) {
           msg = err.message;
         } else {
-          msg = 'Internal Runtime Exception (Check Browser Console for full trace)';
+          msg = (typeof err === 'object') ? JSON.stringify(err) : 'Internal Runtime Exception';
         }
         crashLog.textContent = msg;
         crashOverlay.classList.add('active');
@@ -422,7 +441,7 @@
         }
       });
 
-      // Relative path chunk stitcher
+      // Relative chunk stitcher
       async function fetchPart(baseName, partIdx) {
         const pad4 = String(partIdx).padStart(4, '0');
         const paths = [
@@ -550,10 +569,21 @@
         return xhr;
       };
 
-      // Expose Module globally so hl2_launcher.js attaches cleanly
+      // Intercept worker creation so pthread scripts locate their target properly
+      const OrigWorker = window.Worker;
+      window.Worker = function(scriptURL, options) {
+        let finalUrl = scriptURL;
+        if (typeof scriptURL === 'string' && !scriptURL.startsWith('blob:') && !scriptURL.startsWith('http')) {
+          finalUrl = new URL(scriptURL, window.location.href).href;
+        }
+        return new OrigWorker(finalUrl, options);
+      };
+
+      // Global Emscripten Module
       window.Module = {
         canvas: canvasElement,
         locateFile: (p) => p,
+        mainScriptUrlOrBlob: new URL('hl2_launcher.js', window.location.href).href,
         totalDependencies: 0,
         spinner: window.spinnerElement,
         statusElement: window.statusElement,
@@ -664,6 +694,12 @@
       });
 
       async function startApp() {
+        if (!window.crossOriginIsolated) {
+          alert('SharedArrayBuffer isolation is not active yet. Reloading...');
+          window.location.reload();
+          return;
+        }
+
         if (g_launched) return;
         g_launched = true;
 
@@ -675,13 +711,10 @@
           AL.currentCtx.audioCtx.resume();
         }
 
-        const scriptName = 'hl2_launcher.js';
-        Module.mainScriptUrlOrBlob = scriptName;
-
         const script = document.createElement('script');
         script.type = 'text/javascript';
-        script.src = scriptName;
-        script.onerror = (e) => showCrash(`Failed to load ${scriptName}: verify the file exists in the root directory.`);
+        script.src = 'hl2_launcher.js';
+        script.onerror = (e) => showCrash('Failed to load hl2_launcher.js');
         document.body.appendChild(script);
       }
     </script>
