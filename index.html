@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
-    <title>HALF-LIFE 2 // WEB</title>
+    <title>Half-Life 2 - Port</title>
 
-    <link rel="icon" href="assets/hl2.png">
+    <link rel="icon" type="image/png" href="assets/hl2.png">
 
     <script>
       window.coi = {
@@ -49,16 +49,24 @@
         font-family: 'LambdaMono', -apple-system, monospace;
       }
 
+      #game-wrapper {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+      }
+
       #canvas {
         width: 100vw;
         height: 100vh;
+        object-fit: contain;
         display: block;
-        position: absolute;
-        top: 0;
-        left: 0;
         outline: none;
         background: #000;
         cursor: default;
+        pointer-events: auto;
       }
 
       #launcher-ui {
@@ -281,7 +289,9 @@
     </style>
   </head>
   <body>
-    <canvas id="canvas" tabindex="-1"></canvas>
+    <div id="game-wrapper">
+      <canvas id="canvas" width="1280" height="800" tabindex="-1"></canvas>
+    </div>
 
     <div id="launcher-ui">
       <div class="terminal-frame">
@@ -298,7 +308,7 @@
         <div class="log-console">
           <div class="log-entry">> <span>MOUNT</span>: 33 DYNAMIC SHARED OBJECTS IDENTIFIED</div>
           <div class="log-entry">> <span>CHUNK_SYS</span>: SUB-50MB SPLIT PIPELINE READY</div>
-          <div class="log-entry">> <span>INPUT_MODE</span>: HYBRID CURSOR / POINTER LOCK</div>
+          <div class="log-entry">> <span>TARGET_BIN</span>: HL2_LAUNCHER.JS</div>
         </div>
 
         <button id="btn-start" class="btn-terminal" onclick="startApp()" disabled>AWAITING ISOLATION...</button>
@@ -403,22 +413,14 @@
         if (window.crossOriginIsolated) clearInterval(isoInterval);
       }, 400);
 
-      // --- CURSOR & POINTER LOCK LOGIC ---
-      // Keep canvas resolution synced to inner window size so clicks land accurately on UI buttons
-      function resizeCanvas() {
-        canvasElement.width = window.innerWidth;
-        canvasElement.height = window.innerHeight;
-      }
-      window.addEventListener('resize', resizeCanvas);
-      resizeCanvas();
-
+      // --- CURSOR AND POINTER LOCK FIX ---
+      // Sync cursor appearance with actual pointer lock state
       document.addEventListener('pointerlockchange', () => {
         const isLocked = document.pointerLockElement === canvasElement;
         canvasElement.style.cursor = isLocked ? 'none' : 'default';
-        document.body.style.cursor = isLocked ? 'none' : 'default';
       });
 
-      // Unlock cleanly on Escape
+      // Escape always unlocks the pointer cleanly
       window.addEventListener('keydown', (e) => {
         if (e.code === 'Escape' || e.key === 'Escape') {
           if (document.pointerLockElement) {
@@ -584,7 +586,6 @@
           function() {
             launcherUi.classList.add('hidden');
             g_engineInitialized = true;
-            resizeCanvas();
           }
         ],
 
@@ -597,7 +598,6 @@
             setTimeout(() => {
               launcherUi.classList.add('hidden');
               g_engineInitialized = true;
-              resizeCanvas();
               canvasElement.focus();
             }, 500);
           }
