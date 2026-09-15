@@ -309,11 +309,12 @@
     </div>
 
     <script type="text/javascript">
-      // Emscripten legacy boilerplate UI shims
+      // 1. Shims for DataLoader legacy UI references
       window.spinnerElement = document.createElement('div');
       window.statusElement = document.createElement('div');
       window.progressElement = document.createElement('progress');
 
+      // 2. Exact split map configuration
       const SPLIT_FILES = {
         'background01.data': 5,
         'd1_canals_01.data': 2,
@@ -347,7 +348,9 @@
       let g_launched = false;
       let g_engineInitialized = false;
 
-      // Ensure SharedArrayBuffer isolation is verified before letting the user click Start
+      // Absolute URL to hl2_launcher.js so workers can never resolve to index.html
+      const SCRIPT_URL = new URL('hl2_launcher.js', window.location.href).href;
+
       function checkIsolation() {
         if (window.crossOriginIsolated) {
           btnStart.disabled = false;
@@ -366,7 +369,7 @@
         setTimeout(checkIsolation, 1000);
       });
 
-      // Pointer lock behavior: prevent cursor from getting stuck on escape
+      // Pointer lock behavior: prevent cursor from vanishing on Escape
       document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement !== canvasElement) {
           canvasElement.style.cursor = 'default';
@@ -421,7 +424,7 @@
         } else if (err && err.message) {
           msg = err.message;
         } else {
-          msg = (typeof err === 'object') ? JSON.stringify(err) : 'Internal Runtime Exception';
+          msg = 'Internal Runtime Exception';
         }
         crashLog.textContent = msg;
         crashOverlay.classList.add('active');
@@ -569,21 +572,24 @@
         return xhr;
       };
 
-      // Intercept worker creation so pthread scripts locate their target properly
+      // 3. Worker Interceptor: forces workers to execute hl2_launcher.js
       const OrigWorker = window.Worker;
       window.Worker = function(scriptURL, options) {
         let finalUrl = scriptURL;
-        if (typeof scriptURL === 'string' && !scriptURL.startsWith('blob:') && !scriptURL.startsWith('http')) {
+        // If the runtime passes undefined, a relative URL, or an object URL
+        if (!scriptURL || typeof scriptURL !== 'string' || scriptURL.endsWith('index.html') || scriptURL === window.location.href) {
+          finalUrl = SCRIPT_URL;
+        } else if (!scriptURL.startsWith('blob:') && !scriptURL.startsWith('http')) {
           finalUrl = new URL(scriptURL, window.location.href).href;
         }
         return new OrigWorker(finalUrl, options);
       };
 
-      // Global Emscripten Module
+      // 4. Pre-initialize Module globally before hl2_launcher.js parses
       window.Module = {
         canvas: canvasElement,
         locateFile: (p) => p,
-        mainScriptUrlOrBlob: new URL('hl2_launcher.js', window.location.href).href,
+        mainScriptUrlOrBlob: SCRIPT_URL,
         totalDependencies: 0,
         spinner: window.spinnerElement,
         statusElement: window.statusElement,
@@ -669,29 +675,6 @@
           }
         ]
       };
-
-      let _downloadMapHandler = null;
-      Object.defineProperty(Module, 'downloadMap', {
-        configurable: true,
-        enumerable: true,
-        get: () => _downloadMapHandler,
-        set: (origFn) => {
-          _downloadMapHandler = function(lock, mapName) {
-            function _release() {
-              try { Atomics.store(HEAP32, lock >> 2, 0); Atomics.notify(HEAP32, lock >> 2); } catch(e) {}
-              try { Atomics.store(HEAP32, lock, 0); Atomics.notify(HEAP32, lock); } catch(e) {}
-            }
-            window.audioLoaded = true;
-            if (window.dataLoader) {
-              window.dataLoader.loadMapWithDeps(mapName).then(_release).catch(_release);
-            } else if (typeof origFn === 'function') {
-              try { origFn(lock, mapName); } catch(e) { _release(); }
-            } else {
-              _release();
-            }
-          };
-        }
-      });
 
       async function startApp() {
         if (!window.crossOriginIsolated) {
